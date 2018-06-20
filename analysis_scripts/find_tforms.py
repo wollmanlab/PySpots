@@ -12,7 +12,7 @@ if __name__ == '__main__':
     parser.add_argument("bead_path", type=str, help="Path pickle dictionary of candidate beads per position name.")
     parser.add_argument("out_path", type=str, help="Path to save output.")
     parser.add_argument("-p", "--nthreads", type=int, dest="ncpu", default=4, action='store', nargs=1, help="Number of cores to utilize (default 4).")
-    parser.add_argument("-t", "--resthresh", type=int, dest="max_thresh", default=1.5, action='store', nargs=1, help="maximum residual to allow")
+    parser.add_argument("-t", "--resthresh", type=float, dest="max_thresh", default=1.5, action='store', nargs=1, help="maximum residual to allow")
     args = parser.parse_args()
     print(args)
 
