@@ -114,11 +114,25 @@ if __name__ == '__main__':
                 elif results[hybe][1] > args.max_thresh:
                     goodness = goodness + 1
                     print(pos, hybe, 'residual is too high',results[hybe][1]) 
+            tvec = defaultdict(dict)
+            quals = defaultdict(dict)
+            hybe_quals = defaultdict(dict)
             if goodness == 0:
-                tforms_dict['good'][pos] = results
+                for hybe in results.keys():
+                    tvec[hybe] = results[hybe][0]
+                    hybe_quals = defaultdict(dict)
+                    hybe_quals['residual'] = results[hybe][1]
+                    hybe_quals['nbeads'] = results[hybe][2]
+                    quals[hybe] = hybe_quals
+                tforms_dict['good'][pos] = (tvec,quals)
                 print(pos, 'all good')
             else:
-                tforms_dict['bad'][pos] = results
+                for hybe in results.keys():
+                    tvec[hybe] = results[hybe][0]
+                    hybe_quals['residual'] = results[hybe][1]
+                    hybe_quals['nbeads'] = results[hybe][2]
+                    quals[hybe] = hybe_quals
+                tforms_dict['bad'][pos] = (tvec,quals)
                 print(pos, 'no bueno')
     print('Finished finding tforms')
     pickle.dump(tforms_dict,open(os.path.join(args.out_path,'tforms.pkl'),'wb'))
