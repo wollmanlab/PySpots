@@ -4,6 +4,26 @@ from skimage.filters import gaussian_filter
 from skimage import restoration
 import numpy
 import numpy as np
+from scipy import interpolate
+
+
+def interp_warp(img, x, y):
+    """
+    Apply chromatic abberation shifts to images.
+    
+    Parameters
+    ----------
+    img : ndarray
+    x : array
+    y : array
+    
+    Returns
+    -------
+    nimg : ndarray - same size as img but interpolated from x, y onto 0, 1, ... , img.shape
+    """
+    i2 = interpolate.interp2d(x, y, img)
+    nimg = i2(range(img.shape[0]), range(img.shape[1]))
+    return nimg
 
 def dogonvole(image, psf, kernel=(2.1, 2.1, 0.), blur=(1.1, 1.1, 0.), niter=8):
     """
@@ -182,7 +202,7 @@ def tform_image(cstk, channel, tvect):
     cstk = interp_warp(cstk, xs, ys)
     return cstk.astype('float32')
 
-
+from seqfish_config import *
 def pseudo_maxproject_positions_and_tform(posname, tforms_xy, tforms_z, zstart=6,
                                           k=2, reg_ref = 'hybe1'):
     """
@@ -206,6 +226,4 @@ def pseudo_maxproject_positions_and_tform(posname, tforms_xy, tforms_z, zstart=6
         del zstk
     cstk = np.stack(cstk, axis=2)
     nf = np.percentile(cstk, 90, axis=(0, 1))
-    #pickle.dump({'cstk': cstk, 'nf': nf},
-                #open(os.path.join('/scratch/Images2018/Robert/ca_celltypes/hybe_mcf10a_serumTitration_redux_deux_less_dense_cells_2018Jun18_2018Jun21/', posname), 'wb'))
     return cstk, nf
