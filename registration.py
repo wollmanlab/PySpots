@@ -3,6 +3,8 @@ import numpy as np
 from collections import defaultdict
 from scipy.spatial import KDTree
 from metadata import Metadata
+from skimage import io
+from skimage.feature import match_template, peak_local_max
 
 def find_beads_3D(fnames_list, bead_template, match_threshold=0.75):
     """
@@ -37,9 +39,10 @@ def find_beads_3D(fnames_list, bead_template, match_threshold=0.75):
     ref_stk = numpy.stack([io.imread(i) for i in fnames_list], axis=2).astype('float')
     ref_match = match_template(ref_stk, bead_template)
     ref_beads = peak_local_max(ref_match, threshold_abs=match_threshold)
-    ref_substks = fetch_substacks(ref_stk, ref_beads, w=3)
+    ref_substks, keep_list = fetch_substacks(ref_stk, ref_beads, w=3)
+    ref_beads = ref_beads[keep_list, :]
     #del ref_stk
-    return ref_stk, ref_match, ref_beads, ref_substks
+    return ref_beads, ref_substks
 
 def processStk(stk, npeaks=200):
     stk = np.subtract(stk, np.min(stk, axis=2)[:,:,np.newaxis])
@@ -50,16 +53,22 @@ def processStk(stk, npeaks=200):
 def fetch_substacks(stk, peaks, w=3, sz = 7):
     imsz = stk.shape
     substks = {}
-    for p in peaks:
+    keep_list = []
+    for ii, p in enumerate(peaks):
         if (p[0] <= w) or (p[0] >= imsz[0]-w):
+            #pop_list.append(ii)
             continue
         if (p[1] <= w) or (p[1] >= imsz[1]-w):
+            #pop_list.append(ii)
             continue
         if (p[2] <= w) or (p[2] >= imsz[2]-w):
+            #pop_list.append(ii)
             continue
         substk = stk[p[0]:p[0]+sz, p[1]:p[1]+sz, p[2]:p[2]+sz]
         substks[tuple(p)] = substk
-    return substks
+        keep_list.append(ii)
+    #pop_list = {tuple(k):0 for k in pop_list}
+    return substks, keep_list
 
 def find_average_bead_profile(stk, w, sz):
     fstk, peaks = processStk(stk.copy())
