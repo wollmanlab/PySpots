@@ -1,6 +1,6 @@
 import numpy
 import numpy as np
-def multi_z_pseudo_maxprjZ_wrapper(posname, reg_ref='hybe1', zstart=5, k=2, zskip=4, zmax=26):
+def multi_z_pseudo_maxprjZ_wrapper(posname, tforms_xy, tforms_z, reg_ref='hybe1', zstart=5, k=2, zskip=4, zmax=26):
     codestacks = {}
     norm_factors = {}
     class_imgs = {}
