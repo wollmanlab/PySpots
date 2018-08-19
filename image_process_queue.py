@@ -10,6 +10,7 @@ from codestack_creation import * # not sure why needed?
 import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument("md_path", type=str, help="Path to root of imaging folder to initialize metadata.")
+parser.add_argument("out_path", type=str, help="Path to save output.")
 parser.add_argument("-p", "--nthreads", type=int, dest="ncpu", default=52, action='store', nargs=1, help="Number of cores to utilize (default 52).")
 args = parser.parse_args()
 print(args)
@@ -66,7 +67,7 @@ def process_image_postimaging(fname, min_thresh=5./2**16, niter=15, uint8=False)
     Notes - currently save locations are hardcoded inside here.
     Also psf's are imported during config file import and globals.
     """
-    global orange_psf, green_psf, farred_psf
+    global orange_psf, green_psf, farred_psf, base_path, out_path
     cstk = io.imread(fname).astype('float32')#/2.**16
     
     if 'DeepBlue' in fname:
@@ -84,11 +85,15 @@ def process_image_postimaging(fname, min_thresh=5./2**16, niter=15, uint8=False)
         cstk = dogonvole(cstk, farred_psf, niter=niter)
     else:
         print('unmet name', fname)
+    out_fname = os.path.join(out_path, fname[len(base_path):])
+    out_dirs, filename = os.path.split(out_fname)
+    if not os.path.exists(out_dirs):
+        os.makedirs(out_dirs)
     if uint8:
         cstk = cstk/2**6
-        io.imsave(fname, cstk.astype('uint8'))
+        io.imsave(out_fname, cstk.astype('uint8'))
     else:
-        io.imsave(fname, cstk.astype('uint16'))
+        io.imsave(out_fname, cstk.astype('uint16'))
     return fname
 
 def worker(fname, q):
@@ -101,6 +106,7 @@ def worker(fname, q):
     q.put(fname)
 
 def main(md_path, fn, ncpu, chunksize):
+    global base_path
     with multiprocessing.Pool(ncpu) as p:
         md = Metadata(md_path)
         all_images = md.image_table.filename.values
@@ -113,7 +119,7 @@ def main(md_path, fn, ncpu, chunksize):
             f.close()
         tstart = time.time()
         print('Starting...', 'already done ', str(len(doneso)), ', but ', str(len(all_images)), 'left')
-        with open(fn, 'a') as f:
+        with open(os.open(fn, os.O_CREAT | os.O_WRONLY, 0o775), 'a') as f:
             for result in p.imap(process_image_postimaging, all_images, chunksize=chunksize):
                 f.write(str(result)+'\n')
         tend = time.time()
@@ -124,9 +130,15 @@ if __name__ == "__main__":
     #md_path = '/data/hybe_endo_100k_2018Aug06'
     #fn = '/home/rfor10/deconv_endos.log'
 #    md_path = sys.argv[1]
-    fn = os.path.join(args.md_path, 'processing.log')
+    md = Metadata(args.md_path)
+    base_path = md.base_pth
+    fn = os.path.join(args.out_path, 'processing.log')
     chunksize=1
     os.environ['MKL_NUM_THREADS'] = '1'
     os.environ['GOTO_NUM_THREADS'] = '1'
     os.environ['OMP_NUM_THREADS'] = '1'
+    out_path = args.out_path
+    if not os.path.exists(out_path):
+        os.makedirs(out_path)
     main(args.md_path, fn, args.ncpu, chunksize)
+
