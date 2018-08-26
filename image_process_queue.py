@@ -12,12 +12,16 @@ parser = argparse.ArgumentParser()
 parser.add_argument("md_path", type=str, help="Path to root of imaging folder to initialize metadata.")
 parser.add_argument("out_path", type=str, help="Path to save output.")
 parser.add_argument("-p", "--nthreads", type=int, dest="ncpu", default=52, action='store', nargs=1, help="Number of cores to utilize (default 52).")
+parser.add_argument("--hotpixels", type=str, dest="hot_pixel_pth", default='/home/rfor10/repos/PySpots/hot_pixels_aug2018.pkl', action='store', nargs=1, help="Path to file to use for hot pixels.")
 args = parser.parse_args()
 print(args)
 
-def dogonvole(image, psf, kernel=(2., 2., 0.), blur=(1.3, 1.3, 0.), niter=12):
+hot_pixels = pickle.load(open(args.hot_pixel_pth, 'rb'))
+
+def dogonvole(image, psf, kernel=(2., 2., 0.), blur=(1.3, 1.3, 0.), niter=10):
     """
     Perform deconvolution and difference of gaussian processing.
+
     Parameters
     ----------
     image : ndarray
@@ -25,28 +29,34 @@ def dogonvole(image, psf, kernel=(2., 2., 0.), blur=(1.3, 1.3, 0.), niter=12):
     kernel : tuple
     blur : tuple
     niter : int
-    
+
     Returns
     -------
     image : ndarray
         Processed image same shape as image input.
     """
+    global hot_pixels
     if not psf.sum() == 1.:
         raise ValueError("psf must be normalized so it sums to 1")
     image = image.astype('float32')
+    imin = image.min()
+    for y, x in hot_pixels:
+        image[y, x] = imin;
+        
     img_bg = ndimage.gaussian_filter(image, kernel[:len(image.shape)])
     image = numpy.subtract(image, img_bg)
     numpy.place(image, image<0, 1./2**16)
     image = image.astype('uint16')
     if len(image.shape)==3:
         for i in range(image.shape[2]):
-            image[:,:,i] = restoration.richardson_lucy(image[:,:,i], psf, niter, clip=False)
+            image[:,:,i] = restoration.richardson_lucy(image[:,:,i], psf,
+                                                       niter, clip=False)
     elif len(image.shape)==2:
         image = restoration.richardson_lucy(image, psf, niter, clip=False)
     else:
         raise ValueError('image is not a supported dimensionality.')
-    image = ndimage.gaussian_filter(image, blur[:len(image.shape)])
-    return image
+    image = gaussian_filter(image, blur[:len(image.shape)])
+    return image                       
 
 
 def process_image_postimaging(fname, min_thresh=5./2**16, niter=15, uint8=False):
@@ -130,6 +140,10 @@ if __name__ == "__main__":
     #md_path = '/data/hybe_endo_100k_2018Aug06'
     #fn = '/home/rfor10/deconv_endos.log'
 #    md_path = sys.argv[1]
+    ncpu = args.ncpu
+    if isinstance(ncpu, list):
+        assert(len(ncpu)==1)
+        ncpu = ncpu[0]
     md = Metadata(args.md_path)
     base_path = md.base_pth
     fn = os.path.join(args.out_path, 'processing.log')
@@ -140,5 +154,5 @@ if __name__ == "__main__":
     out_path = args.out_path
     if not os.path.exists(out_path):
         os.makedirs(out_path)
-    main(args.md_path, fn, args.ncpu, chunksize)
+    main(args.md_path, fn, ncpu, chunksize)
 
