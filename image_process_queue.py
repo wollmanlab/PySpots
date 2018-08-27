@@ -6,6 +6,7 @@ from metadata import Metadata
 from scipy import ndimage
 from skimage import io
 from codestack_creation import * # not sure why needed?
+from functools import partial
 
 import argparse
 parser = argparse.ArgumentParser()
@@ -55,12 +56,12 @@ def dogonvole(image, psf, kernel=(2., 2., 0.), blur=(1.3, 1.3, 0.), niter=10):
         image = restoration.richardson_lucy(image, psf, niter, clip=False)
     else:
         raise ValueError('image is not a supported dimensionality.')
-    image = gaussian_filter(image, blur[:len(image.shape)])
-    return image                       
+    image = ndimage.gaussian_filter(image, blur[:len(image.shape)])
+    return image
 
 
-def process_image_postimaging(fname, min_thresh=5./2**16, niter=15, uint8=False):
-    """    
+def process_image_postimaging(fname, out_path, min_thresh=5./2**16, niter=15, uint8=False):
+    """
     Parameters
     ----------
     fname : str
@@ -69,17 +70,17 @@ def process_image_postimaging(fname, min_thresh=5./2**16, niter=15, uint8=False)
         Minimum intensity will become 0 in output
     niter : int
         Number of iterations of deconvolution to perform.
-    
+
     Returns
     -------
     Nothing but new file is written
-    
+
     Notes - currently save locations are hardcoded inside here.
     Also psf's are imported during config file import and globals.
     """
-    global orange_psf, green_psf, farred_psf, base_path, out_path
+    global orange_psf, green_psf, farred_psf, base_path
     cstk = io.imread(fname).astype('float32')#/2.**16
-    
+
     if 'DeepBlue' in fname:
 #         xs, ys = yshift_db+tvect[0], xshift_db+tvect[1]
 #        return cstk.astype('uint16')
@@ -95,10 +96,16 @@ def process_image_postimaging(fname, min_thresh=5./2**16, niter=15, uint8=False)
         cstk = dogonvole(cstk, farred_psf, niter=niter)
     else:
         print('unmet name', fname)
-    out_fname = os.path.join(out_path, fname[len(base_path):])
+    out_fname = os.path.join(str(out_path), fname[len(base_path):])
+#    print(out_path, fname[len(base_path):])
     out_dirs, filename = os.path.split(out_fname)
+    #print(out_path, out_fname)
+    print(out_path)
     if not os.path.exists(out_dirs):
-        os.makedirs(out_dirs)
+        try:
+            os.makedirs(out_dirs)
+        except Exception as e:
+            print(e)
     if uint8:
         cstk = cstk/2**6
         io.imsave(out_fname, cstk.astype('uint8'))
@@ -116,7 +123,8 @@ def worker(fname, q):
     q.put(fname)
 
 def main(md_path, fn, ncpu, chunksize):
-    global base_path
+    global base_path, out_path
+    pfunc = partial(process_image_postimaging, out_path=out_path)
     with multiprocessing.Pool(ncpu) as p:
         md = Metadata(md_path)
         all_images = md.image_table.filename.values
@@ -130,12 +138,12 @@ def main(md_path, fn, ncpu, chunksize):
         tstart = time.time()
         print('Starting...', 'already done ', str(len(doneso)), ', but ', str(len(all_images)), 'left')
         with open(os.open(fn, os.O_CREAT | os.O_WRONLY, 0o775), 'a') as f:
-            for result in p.imap(process_image_postimaging, all_images, chunksize=chunksize):
+            for result in p.imap(pfunc, all_images, chunksize=chunksize):
                 f.write(str(result)+'\n')
         tend = time.time()
     print('Finished processing ', str(len(all_images)), 'images in ', str(tend-tstart), 'seconds.')
-       
-    
+
+
 if __name__ == "__main__":
     #md_path = '/data/hybe_endo_100k_2018Aug06'
     #fn = '/home/rfor10/deconv_endos.log'
@@ -146,12 +154,16 @@ if __name__ == "__main__":
         ncpu = ncpu[0]
     md = Metadata(args.md_path)
     base_path = md.base_pth
+    if not base_path[-1]=='/':
+        base_path=base_path+'/'
+    #print(base_path)
     fn = os.path.join(args.out_path, 'processing.log')
     chunksize=1
     os.environ['MKL_NUM_THREADS'] = '1'
     os.environ['GOTO_NUM_THREADS'] = '1'
     os.environ['OMP_NUM_THREADS'] = '1'
     out_path = args.out_path
+    #print(out_path)
     if not os.path.exists(out_path):
         os.makedirs(out_path)
     main(args.md_path, fn, ncpu, chunksize)
