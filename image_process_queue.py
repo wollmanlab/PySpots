@@ -5,7 +5,7 @@ from seqfish_config24bit_ca_cell_v2 import * #needs this for the deconvolution k
 from metadata import Metadata
 from scipy import ndimage
 from skimage import io
-from codestack_creation import * # not sure why needed?
+#from codestack_creation import * # not sure why needed?
 from functools import partial
 
 import argparse
