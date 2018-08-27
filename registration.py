@@ -6,6 +6,7 @@ from metadata import Metadata
 from skimage import io
 from skimage.feature import match_template, peak_local_max
 
+
 def find_beads_3D(fnames_list, bead_template, match_threshold=0.75):
     """
     3D registration from sparse bead images.
@@ -88,7 +89,7 @@ def reject_outliers(data, m=3):
     data = [d for idx, d in enumerate(data) if s[idx]]
     return data
 
-def find_tforms(beads, reg_ref_hybe = 'hybe1', max_dist = 30, verbose=True):
+def find_tforms(beads, reg_ref_hybe = 'hybe1', max_dist = 30, verbose=False):
     """
     Process putative bead coordinates to find registration shifts between hybes.
     
@@ -108,6 +109,8 @@ def find_tforms(beads, reg_ref_hybe = 'hybe1', max_dist = 30, verbose=True):
     implements a better way of finding Z fits.
     
     """
+    if 'nucstain' in beads:
+        beads.pop('nucstain')
     hybe_names = []
     tforms = {reg_ref_hybe: {'tvec': numpy.array([0, 0])}}
     ref_beads = beads.pop(reg_ref_hybe)
@@ -164,18 +167,18 @@ def find_tforms(beads, reg_ref_hybe = 'hybe1', max_dist = 30, verbose=True):
     except:
         tforms_z_r = {h: np.round(np.mean(v)).astype('int') for h, v in tforms_z.items()}
     #tforms_z_Ave = {h: np.mean(reject_outliers(v)) for h, v in tforms_z.items()}
-    tforms_xy = {h: np.mean(reject_outliers(v), axis=0) for h, v in tforms_xy.items()}
+    tforms_xy = {h: np.nanmean(reject_outliers(v), axis=0) for h, v in tforms_xy.items()}
     error_xy = 0
     error_z = 0
     nbeads = len(master_beads)
-    return nbeads, tforms_xy, tforms_z, error_xy, error_z, master_beads
+    return nbeads, tforms_xy, tforms_z_r, error_xy, error_z, master_beads
 
 from codestack_creation import tform_image
 def pseudo_bead_stacks_byposition(posname, md_pth, tforms_xy, tforms_z, zstart=6, k=2, reg_ref='hybe1'):
-    hybe_names = ['hybe1', 'hybe2', 'hybe3', 'hybe4', 'hybe5', 'hybe6']
+    hybe_names = ['hybe1', 'hybe2', 'hybe3', 'hybe4', 'hybe5', 'hybe6', 'hybe7', 'hybe8', 'hybe9']
     md = Metadata(md_pth)
-    xy = tforms_xy[posname]
-    z = tforms_z[posname]
+    xy = tforms_xy
+    z = tforms_z
     z = {k: int(np.round(np.mean(v))) for k, v in z.items()}
     z[reg_ref] = 0
     xy[reg_ref] = (0,0)
@@ -193,3 +196,146 @@ def pseudo_bead_stacks_byposition(posname, md_pth, tforms_xy, tforms_z, zstart=6
     cstk = np.stack(cstk, axis=2)
     #nf = np.percentile(cstk, 90, axis=(0, 1))
     return cstk
+
+# Methods to use cross correlation (example multiprocessign call below)
+#results = ppool.starmap(wrappadappa_bead_xcorr, zip(posnames, itertools.repeat(md_pth, len(posnames))))
+#seed_tforms = {p:k for p,k in results}
+import imreg_dft as ird
+def hybe_composite(md_pth, posname, channels = ['DeepBlue'],
+                   zindexes=[5, 6, 7, 8, 9, 10, 11, 12, 13, 14], nhybes = 9):
+    """
+    Create maximum projection composites from each hybe.
+    """
+    hybe_names = ['hybe'+str(i) for i in range(1, nhybes+1)]
+    md = Metadata(md_pth)
+    if zindexes is None:
+        zindexes = list(md.image_table.Zindex.unique())
+    hybe_composites = {}
+    for h in hybe_names:
+        hybe_stk = md.stkread(Channel=channels, Position=posname, Zindex=zindexes, hybe=h)
+        hybe_stk = hybe_stk.max(axis=2)
+        hybe_composites[h] = hybe_stk
+    return hybe_composites
+
+def xcorr_hybes(hybe_dict, reg_ref = 'hybe1'):
+    """
+    Find the translation xcorr between hybes.
+    """
+    tvecs = {}
+    for h, img in hybe_dict.items():
+        if h == reg_ref:
+            tvecs[h] = (0,0)
+        else:
+            xcorr_result = ird.translation(hybe_dict[reg_ref], img)
+            tvecs[h] = xcorr_result['tvec']
+    return tvecs
+
+
+def wrappadappa_bead_xcorr(posname, md_pth):
+    bead_projections = hybe_composite(md_pth, posname, channels=['DeepBlue'], zindexes=None, nhybes=9)
+    tvecs = xcorr_hybes(bead_projections)
+    return posname, tvecs
+
+
+# Functions to use new bead fitting routine (use example)
+# func_inputs = [(bead_pos_dicts[pos], seed_tforms[pos]) for pos in posnames]
+# bead_pos_dicts is dictionary of dictionarys
+    #pos:hybe_dict where hybe_dict is hybe_name:bead_array
+# seed_tforms is dictionary created by above functions
+
+# ppool = multiprocessing.Pool(24)
+# results = ppool.starmap(optimize_tforms, func_inputs)
+# good_positions = {}
+# r = []
+# n = []
+# q = []
+# for pos, (tvec, quals) in zip(posnames, results):
+#     residuals = [i['residual'] for i in quals.values()]
+#     nbeads = [i['nbeads'] for i in quals.values()]
+#     ratio = [i['bead_outlier_ratio'] for i in quals.values()]
+#     r += residuals
+#     n += nbeads
+#     q += ratio
+#     if np.amax(residuals) > 1.5:
+#         continue
+#     if np.amin(ratio) < 0.8:
+#         continue
+#     good_positions[pos] = (tvec, quals)
+# gposnames = list(good_positions.keys())
+
+# print('Number good positoins: ', len(good_positions))
+
+
+from scipy.spatial import KDTree
+import scipy
+def find_pair_error(tvect, beads1, beads2):
+    #global naccepted, dists, naccepted2, residual
+    beads2_reg = beads2+tvect
+    tree = KDTree(beads1)
+    b2_pair = [tree.query(p) for p in beads2_reg]
+    dists, idx = zip(*b2_pair)
+    b2_pair = [beads1[i] for i in idx]
+    #list(zip(dists, beads2, b2_pair))
+    naccepted, idx = reject_outliers(dists)
+#     if len(naccepted)/len(dists) < 0.8:
+#         print('Warning lots of beads rejected')
+    naccepted2, idx = reject_outliers(naccepted)
+#     if len(naccepted2)/len(dists) < 0.8:
+#         print('Warning lots of beads rejected')
+    residual = np.abs(np.mean(naccepted2))
+    return residual
+
+def find_pair_error2(tvect, beads1, beads2):
+    #global naccepted, dists, naccepted2, residual
+    beads2_reg = beads2+tvect
+    tree = KDTree(beads1)
+    b2_pair = [tree.query(p) for p in beads2_reg]
+    dists, idx = zip(*b2_pair)
+    b2_pair = [beads1[i] for i in idx]
+    #list(zip(dists, beads2, b2_pair))
+    naccepted, idx = reject_outliers(dists)
+#     if len(naccepted)/len(dists) < 0.8:
+#         print('Warning lots of beads rejected')
+    naccepted2, idx = reject_outliers(naccepted)
+#     if len(naccepted2)/len(dists) < 0.8:
+#         print('Warning lots of beads rejected')
+    residual = np.abs(np.mean(naccepted2))
+    return residual, len(naccepted2), len(dists)
+
+
+def reject_outliers(data, m=2):
+    """
+    Reject outliers for robust distance estimation.
+    (Bead candidates could be incorrect or their cognate pair could be
+    missing in the cognate hybe)
+    """
+    data = np.array(data)
+    good_idx = abs(data - np.mean(data)) < m * np.std(data)
+    return data[good_idx], good_idx
+    
+def optimize_tforms(bead_dict, seed_tforms, reg_ref='hybe1', verbose=False):
+    """
+    New registration method. Find seed tforms by xcorrelation then optimize with 
+    the bead candidate coordinates.
+    """
+    #pos = posnames[11]
+    nucs = bead_dict.pop('nucstain')
+    reg_ref = 'hybe1'
+    opt_tforms = {}
+    tform_quality_metrics = defaultdict(dict)
+    bead_ref = bead_dict.pop(reg_ref)
+    for h, bead_dest in bead_dict.items():
+        initial = seed_tforms[h]
+        initial = (initial[0], initial[1], 0)
+        tvect = scipy.optimize.fmin(find_pair_error, initial,
+                                 args=(bead_ref, bead_dest), disp=verbose)
+        opt_tforms[h] = tvect
+        residual, naccepted2, dists = find_pair_error2(tvect, bead_ref, bead_dest)
+        tform_quality_metrics[h]['nbeads'] = naccepted2
+        tform_quality_metrics[h]['bead_outlier_ratio'] = naccepted2/dists
+        tform_quality_metrics[h]['residual'] = residual
+    opt_tforms[reg_ref] = np.array((0,0,0))
+    bead_dict[reg_ref] = bead_ref
+    bead_dict['nucstain'] = nucs
+    return opt_tforms, tform_quality_metrics
+    
