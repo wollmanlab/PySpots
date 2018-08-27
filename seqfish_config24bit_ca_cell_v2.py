@@ -12,12 +12,10 @@ import pickle
 import pandas
 import os
 from scipy.spatial import distance_matrix
-from skimage.io import imread
 from collections import OrderedDict
 from sklearn.preprocessing import normalize
 
 # Basic parameters of imaging
-image_size = (2048, 2048)
 
 bitmap = [('RS0095_cy5', 'hybe2', 'FarRed'), ('RS0109_cy5', 'hybe4', 'FarRed'),
           ('RS0175_cy5', 'hybe6', 'FarRed'), ('RS0237_cy5', 'hybe1', 'FarRed'),
@@ -92,39 +90,3 @@ bids, blanks = zip(*blank_dict.items())
 cvectors = numpy.concatenate((cwords, blanks), axis=0)
 nvectors = normalize(cvectors)
 
-################################ Microscope Related Config ##########################
-ave_bead = pickle.load(open(os.path.join(base_pth, 'ave_bead.333um.pkl'), 'rb'))
-
-# This .pkl file needs to be in the spot_calling repository/directory
-chromatic_dict = pickle.load(open(os.path.join(base_pth, './jan2018_chromatic.pkl'), 'rb')) # Warning File import
-
-xshift_fr = numpy.add(chromatic_dict['orange_minus_farred'][0], range(image_size[0]))
-yshift_fr = numpy.add(chromatic_dict['orange_minus_farred'][1], range(image_size[1]))
-
-xshift_g = numpy.add(chromatic_dict['orange_minus_green'][0], range(image_size[0]))
-yshift_g = numpy.add(chromatic_dict['orange_minus_green'][1], range(image_size[1]))
-
-xshift_db = numpy.add(chromatic_dict['orange_minus_deepblue'][0], range(image_size[0]))
-yshift_db = numpy.add(chromatic_dict['orange_minus_deepblue'][1], range(image_size[1]))
-
-# dx = chromatic_dict['dx_model_oMfarred']
-# dy = chromatic_dict['dy_model_oMfarred']
-# xshift = numpy.add(range(2048), numpy.polyval(dx, range(2048)))
-# yshift = numpy.add(range(2048), numpy.polyval(dy, range(2048)))
-# xshift_fr, yshift_fr = numpy.meshgrid(xshift, yshift, sparse=True)
-
-# dx = chromatic_dict['dx_model_oMgreen']
-# dy = chromatic_dict['dy_model_oMgreen']
-# xshift = numpy.add(range(2048), numpy.polyval(dx, range(2048)))
-# yshift = numpy.add(range(2048), numpy.polyval(dy, range(2048)))
-# xshift_g, yshift_g = numpy.meshgrid(xshift, yshift, sparse=True)
-
-farred_psf = imread(os.path.join(base_pth, 'farred_psf_fit_250nmZ_63x.tif'))
-farred_psf = farred_psf[25, 8:17, 8:17]
-farred_psf = farred_psf/farred_psf.sum()
-green_psf = imread(os.path.join(base_pth, 'green_psf_fit_250nmZ_63x.tif'))
-green_psf = green_psf[28, 5:14, 5:14]
-green_psf = green_psf/green_psf.sum()
-orange_psf = imread(os.path.join(base_pth, '63x_psf_orange_250nmZ.tif'))
-orange_psf = orange_psf[25,  5:14, 5:14]
-orange_psf = orange_psf/orange_psf.sum()
