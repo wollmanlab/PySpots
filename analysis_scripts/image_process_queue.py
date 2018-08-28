@@ -1,7 +1,7 @@
 import multiprocessing
 import time
 import os
-from seqfish_config24bit_ca_cell_v2 import * #needs this for the deconvolution kernels maybe use gauss or separate in another file??
+from hybescope_config.microscope_config import *
 from metadata import Metadata
 from scipy import ndimage
 from skimage import io, restoration
@@ -13,7 +13,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument("md_path", type=str, help="Path to root of imaging folder to initialize metadata.")
 parser.add_argument("out_path", type=str, help="Path to save output.")
 parser.add_argument("-p", "--nthreads", type=int, dest="ncpu", default=52, action='store', nargs=1, help="Number of cores to utilize (default 52).")
-parser.add_argument("--hotpixels", type=str, dest="hot_pixel_pth", default='/home/rfor10/repos/PySpots/hot_pixels_aug2018.pkl', action='store', nargs=1, help="Path to file to use for hot pixels.")
+parser.add_argument("--hotpixels", type=str, dest="hot_pixel_pth", default='/home/rfor10/repos/PySpots/hybescope_config/hot_pixels_aug2018.pkl', action='store', nargs=1, help="Path to file to use for hot pixels.")
 args = parser.parse_args()
 print(args)
 
