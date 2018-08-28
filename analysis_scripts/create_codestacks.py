@@ -15,7 +15,11 @@ parser = argparse.ArgumentParser()
 parser.add_argument("md_path", type=str, help="Path to root of imaging folder to initialize metadata.")
 parser.add_argument("tforms_pth", type=str, help="Path pickle dictionary of tforms per position name.")
 parser.add_argument("out_path", type=str, help="Path to save output.")
-parser.add_argument("-p", "--nthreads", type=int, dest="ncpu", default=4, action='store', nargs=1, help="Number of cores to utilize (default 4).")
+parser.add_argument("-p", "--nthreads", type=int, dest="ncpu", default=4, action='store', help="Number of cores to utilize (default 4).")
+parser.add_argument("-k", type=int, dest="k", default=2, action='store', help="Number z-slices above and below to max project together.")
+parser.add_argument("-s", "--zstart", type=int, dest="zstart", default=4, action='store', help="Start making max projections centered at zstart.")
+parser.add_argument("-m", "--zmax", type=int, dest="zmax", default=4, action='store', help="End making max projections centered at zmax.")
+parser.add_argument("-i", "--zskip", type=int, dest="zskip", default=4, action='store', help="Skip this many z-slices between centers of max projections.")
 
 args = parser.parse_args()
 
