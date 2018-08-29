@@ -8,6 +8,7 @@ import os
 from collections import defaultdict
 from functools import partial
 import multiprocessing
+import traceback
 
 import argparse
 parser = argparse.ArgumentParser()
@@ -113,35 +114,39 @@ def reject_outliers(data, m=2):
     
 def optimize_tforms(bead_dict, seed_tforms, reg_ref='hybe1', verbose=False):
     """
-    New registration method. Find seed tforms by xcorrelation then optimize with 
+    New registration method. Find seed tforms by xcorrelation then optimize with
     the bead candidate coordinates.
     """
     #pos = posnames[11]
-    if 'nucstain' in bead_dict:
-        nucs = bead_dict.pop('nucstain')
-        popped = True
-    else:
-        popped=False
-    reg_ref = 'hybe1'
-    opt_tforms = {}
-    tform_quality_metrics = defaultdict(dict)
-    bead_ref = bead_dict.pop(reg_ref)
-    for h, bead_dest in bead_dict.items():
-        initial = seed_tforms[h]
-        initial = (initial[0], initial[1], 0)
-        tvect = optimize.fmin(find_pair_error, initial,
-                                 args=(bead_ref, bead_dest), disp=verbose)
-        opt_tforms[h] = tvect
-        residual, naccepted2, dists = find_pair_error2(tvect, bead_ref, bead_dest)
-        tform_quality_metrics[h]['nbeads'] = naccepted2
-        tform_quality_metrics[h]['bead_outlier_ratio'] = naccepted2/dists
-        tform_quality_metrics[h]['residual'] = residual
-    opt_tforms[reg_ref] = np.array((0,0,0))
-    bead_dict[reg_ref] = bead_ref
-    if popped:
-        bead_dict['nucstain'] = nucs
-    
-    return opt_tforms, tform_quality_metrics
+    try:
+        if 'nucstain' in bead_dict:
+            nucs = bead_dict.pop('nucstain')
+            popped = True
+        else:
+            popped=False
+        reg_ref = 'hybe1'
+        opt_tforms = {}
+        tform_quality_metrics = defaultdict(dict)
+        bead_ref = bead_dict.pop(reg_ref)
+        for h, bead_dest in bead_dict.items():
+            initial = seed_tforms[h]
+            initial = (initial[0], initial[1], 0)
+            tvect = optimize.fmin(find_pair_error, initial,
+                                     args=(bead_ref, bead_dest), disp=verbose)
+            opt_tforms[h] = tvect
+            residual, naccepted2, dists = find_pair_error2(tvect, bead_ref, bead_dest)
+            tform_quality_metrics[h]['nbeads'] = naccepted2
+            tform_quality_metrics[h]['bead_outlier_ratio'] = naccepted2/dists
+            tform_quality_metrics[h]['residual'] = residual
+        opt_tforms[reg_ref] = np.array((0,0,0))
+        bead_dict[reg_ref] = bead_ref
+        if popped:
+            bead_dict['nucstain'] = nucs
+        return opt_tforms, tform_quality_metrics
+    except Exception as e:
+        print(e)
+        print(traceback.print_exc())
+        return 'Error'
 
 if __name__ == "__main__":
     #md_path = '/data/hybe_endo_100k_2018Aug06'
@@ -177,6 +182,7 @@ if __name__ == "__main__":
         r = []
         n = []
         q = []
+        results = [t for t in results if not t=='Error']
         for pos, (tvec, quals) in zip(posnames, results):
             residuals = [i['residual'] for i in quals.values()]
             nbeads = [i['nbeads'] for i in quals.values()]
