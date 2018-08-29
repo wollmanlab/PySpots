@@ -8,6 +8,7 @@ image_size = (2048, 2048)
 
 base_pth = os.path.dirname(__file__) # finds location of this module
 ave_bead = pickle.load(open(os.path.join(base_pth, 'ave_bead.333um.pkl'), 'rb'))
+hot_pixels = pickle.load(open(os.path.join(base_pth, 'hot_pixels_aug2018.pkl'), 'rb'))
 
 chromatic_dict = pickle.load(open(os.path.join(base_pth, 'jan2018_chromatic.pkl'), 'rb')) # Warning File import
 
