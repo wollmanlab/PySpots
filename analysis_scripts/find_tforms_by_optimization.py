@@ -8,8 +8,9 @@ import os
 from collections import defaultdict
 from functools import partial
 import multiprocessing
+from scipy.ndimage import gaussian_filter
 import traceback
-
+from hybescope_config.microscope_config import *
 import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument("md_path", type=str, help="Path to root of imaging folder to initialize metadata.")
@@ -21,11 +22,8 @@ parser.add_argument("-p", "--nthreads", type=int, dest="ncpu", default=4, action
 args = parser.parse_args()
 print(args)
 
-# Methods to use cross correlation (example multiprocessign call below)
-#results = ppool.starmap(wrappadappa_bead_xcorr, zip(posnames, itertools.repeat(md_pth, len(posnames))))
-#seed_tforms = {p:k for p,k in results}
 def hybe_composite(md_pth, posname, channels = ['DeepBlue'],
-                   zindexes=[5, 6, 7, 8, 9, 10, 11, 12, 13, 14], nhybes = 9):
+                   zindexes=None, nhybes = 9):
     """
     Create maximum projection composites from each hybe.
     """
@@ -37,19 +35,28 @@ def hybe_composite(md_pth, posname, channels = ['DeepBlue'],
     for h in hybe_names:
         hybe_stk = md.stkread(Channel=channels, Position=posname, Zindex=zindexes, hybe=h)
         hybe_stk = hybe_stk.max(axis=2)
+        for y, x in hot_pixels:
+            hybe_stk[y, x] = 0
         hybe_composites[h] = hybe_stk
     return hybe_composites
 
-def xcorr_hybes(hybe_dict, reg_ref = 'hybe1'):
+def xcorr_hybes(hybe_dict, reg_ref = 'hybe1', bead_thresh=10000):
     """
     Find the translation xcorr between hybes.
     """
     tvecs = {}
+    ref_img = hybe_dict[reg_ref]
+#     img_bg = gaussian_filter(ref_img, (10, 10))
+#     ref_hpass = ref_img-img_bg
+#     np.place(ref_hpass, ref_hpass<bead_thresh, 0.01)
     for h, img in hybe_dict.items():
         if h == reg_ref:
             tvecs[h] = (0,0)
         else:
-            xcorr_result = ird.translation(hybe_dict[reg_ref], img)
+#             img_bg = gaussian_filter(img, (10, 10))
+#             img_hpass = img-img_bg
+#             np.place(img_hpass, img_hpass<bead_thresh, 0.01)
+            xcorr_result = ird.translation(ref_img, img)
             tvecs[h] = xcorr_result['tvec']
     return tvecs
 
@@ -76,12 +83,14 @@ def find_pair_error(tvect, beads1, beads2):
     b2_pair = [beads1[i] for i in idx]
     #list(zip(dists, beads2, b2_pair))
     naccepted, idx = reject_outliers(dists)
+    for i in range(5):
+        naccepted, idx = reject_outliers(naccepted)
 #     if len(naccepted)/len(dists) < 0.8:
 #         print('Warning lots of beads rejected')
     naccepted2, idx = reject_outliers(naccepted)
 #     if len(naccepted2)/len(dists) < 0.8:
 #         print('Warning lots of beads rejected')
-    residual = np.abs(np.mean(naccepted2))
+    residual = np.abs(np.median(naccepted2))
     return residual
 
 def find_pair_error2(tvect, beads1, beads2):
@@ -93,12 +102,14 @@ def find_pair_error2(tvect, beads1, beads2):
     b2_pair = [beads1[i] for i in idx]
     #list(zip(dists, beads2, b2_pair))
     naccepted, idx = reject_outliers(dists)
+    for i in range(5):
+        naccepted, idx = reject_outliers(naccepted)
 #     if len(naccepted)/len(dists) < 0.8:
 #         print('Warning lots of beads rejected')
     naccepted2, idx = reject_outliers(naccepted)
 #     if len(naccepted2)/len(dists) < 0.8:
 #         print('Warning lots of beads rejected')
-    residual = np.abs(np.mean(naccepted2))
+    residual = np.abs(np.median(naccepted2))
     return residual, len(naccepted2), len(dists)
 
 
@@ -111,7 +122,7 @@ def reject_outliers(data, m=2):
     data = np.array(data)
     good_idx = abs(data - np.mean(data)) < m * np.std(data)
     return data[good_idx], good_idx
-    
+
 def optimize_tforms(bead_dict, seed_tforms, reg_ref='hybe1', verbose=False):
     """
     New registration method. Find seed tforms by xcorrelation then optimize with
