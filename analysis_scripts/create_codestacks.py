@@ -8,23 +8,25 @@ from scipy import interpolate
 from hybescope_config.microscope_config import *
 from metadata import Metadata
 from functools import partial
+import importlib
 
 
 import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument("md_path", type=str, help="Path to root of imaging folder to initialize metadata.")
-parser.add_argument("tforms_pth", type=str, help="Path pickle dictionary of tforms per position name.")
+parser.add_argument("cword_config", type=str, help="Path to python file initializing the codewords and providing bitmap variable.")
+parser.add_argument("tforms_path", type=str, help="Path pickle dictionary of tforms per position name.")
 parser.add_argument("out_path", type=str, help="Path to save output.")
-parser.add_argument("-p", "--nthreads", type=int, dest="ncpu", default=4, action='store', help="Number of cores to utilize (default 4).")
+parser.add_argument("-p", "--nthreads", type=int, dest="ncpu", default=8, action='store', help="Number of cores to utilize (default 4).")
 parser.add_argument("-k", type=int, dest="k", default=2, action='store', help="Number z-slices above and below to max project together.")
 parser.add_argument("-s", "--zstart", type=int, dest="zstart", default=4, action='store', help="Start making max projections centered at zstart.")
-parser.add_argument("-m", "--zmax", type=int, dest="zmax", default=4, action='store', help="End making max projections centered at zmax.")
+parser.add_argument("-m", "--zmax", type=int, dest="zmax", default=15, action='store', help="End making max projections centered at zmax.")
 parser.add_argument("-i", "--zskip", type=int, dest="zskip", default=4, action='store', help="Skip this many z-slices between centers of max projections.")
 
 args = parser.parse_args()
 
 
-def multi_z_pseudo_maxprjZ_wrapper(posname, tforms_xy, tforms_z,
+def multi_z_pseudo_maxprjZ_wrapper(posname, md_path, tforms_xy, tforms_z, bitmap, cstk_save_dir,
                                    reg_ref='hybe1', zstart=5,
                                    k=2, zskip=4, zmax=26):
     global cstk_save_dir
@@ -33,7 +35,7 @@ def multi_z_pseudo_maxprjZ_wrapper(posname, tforms_xy, tforms_z,
     class_imgs = {}
     for z_i in list(range(zstart, zmax, zskip)):
         cstk, nf = pseudo_maxproject_positions_and_tform(posname, tforms_xy,
-                                                         tforms_z, zstart=z_i, 
+                                                         tforms_z, bitmap, zstart=z_i, 
                                                         k=k)
         codestacks[z_i] = cstk.astype('uint16')
         norm_factors[z_i] = nf
@@ -41,7 +43,7 @@ def multi_z_pseudo_maxprjZ_wrapper(posname, tforms_xy, tforms_z,
     np.savez(os.path.join(cstk_save_dir, posname), cstks=codestacks, 
             norm_factors = norm_factors, class_imgs = class_imgs)
 
-def pseudo_maxproject_positions_and_tform(posname, tforms_xy, tforms_z, zstart=6,
+def pseudo_maxproject_positions_and_tform(posname, md_path, tforms_xy, tforms_z, bitmap, zstart=6,
                                           k=2, reg_ref = 'hybe1'):
     """
     Wrapper for multiple Z codestack where each is max_projection of few frames above and below.
@@ -134,4 +136,17 @@ if __name__=='__main__':
         tzz = {k: v[2] for k, v in tforms_xyz.items()}
         func_inputs.append((p, txy, tzz))
     with multiprocessing.Pool(ncpu) as ppool:
+        ppool.starmap(pfunc, func_inputs)
+        
+if __name__=='__main__':
+    seqfish_config = importlib.import_module(args.cword_config)
+    pfunc = partial(multi_z_pseudo_maxprjZ_wrapper, md_path=args.md_path, bitmap=seqfish_config.bitmap,                     k=args.k, zstart=args.zstart, zskip=args.zskip, zmax=args.zmax, cstk_save_dir=args.out_path)
+    good_positions = pickle.load(open(args.tforms_path, 'rb'))
+    func_inputs = []
+    for p, (t, q) in good_positions.items():
+        tforms_xyz = {k: (v[0], v[1], int(np.round(np.mean(v[2])))) for k, v in t.items()}
+        txy = {k: (v[0], v[1]) for k, v in tforms_xyz.items()}
+        tzz = {k: v[2] for k, v in tforms_xyz.items()}
+        func_inputs.append((p, txy, tzz))
+    with multiprocessing.Pool(args.ncpu) as ppool:
         ppool.starmap(pfunc, func_inputs)
