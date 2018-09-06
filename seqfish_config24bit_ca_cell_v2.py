@@ -87,6 +87,9 @@ for i, bc in enumerate(blank_bc):
     
 gids, cwords = zip(*cbook_dict.items())
 bids, blanks = zip(*blank_dict.items())
-cvectors = numpy.concatenate((cwords, blanks), axis=0)
-nvectors = normalize(cvectors)
+gene_codeword_vectors = numpy.stack(cwords, axis=0)
+blank_codeword_vectors = numpy.stack(blanks, axis=0)
+norm_gene_codeword_vectors = normalize(gene_codeword_vectors)
+norm_blank_codeword_vectors = normalize(blank_codeword_vectors)
+
 
