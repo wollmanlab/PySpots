@@ -11,16 +11,19 @@ import multiprocessing
 from scipy.ndimage import gaussian_filter
 import traceback
 from hybescope_config.microscope_config import *
-import argparse
-parser = argparse.ArgumentParser()
-parser.add_argument("md_path", type=str, help="Path to root of imaging folder to initialize metadata.")
-parser.add_argument("bead_path", type=str, help="Path pickle dictionary of candidate beads per position name.")
-parser.add_argument("out_path", type=str, help="Path to save output.")
-parser.add_argument("-p", "--nthreads", type=int, dest="ncpu", default=4, action='store', nargs=1, help="Number of cores to utilize (default 4).")
 
-# parser.add_argument("--hotpixels", type=str, dest="hot_pixel_pth", default='/home/rfor10/repos/PySpots/hot_pixels_aug2018.pkl', action='store', nargs=1, help="Path to file to use for hot pixels.")
-args = parser.parse_args()
-print(args)
+# Protecting this block in if allows functions to be imported independently
+if __name__ == '__main__':
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("md_path", type=str, help="Path to root of imaging folder to initialize metadata.")
+    parser.add_argument("bead_path", type=str, help="Path pickle dictionary of candidate beads per position name.")
+    parser.add_argument("out_path", type=str, help="Path to save output.")
+    parser.add_argument("-p", "--nthreads", type=int, dest="ncpu", default=4, action='store', nargs=1, help="Number of cores to utilize (default 4).")
+
+    # parser.add_argument("--hotpixels", type=str, dest="hot_pixel_pth", default='/home/rfor10/repos/PySpots/hot_pixels_aug2018.pkl', action='store', nargs=1, help="Path to file to use for hot pixels.")
+    args = parser.parse_args()
+    print(args)
 
 def hybe_composite(md_pth, posname, channels = ['DeepBlue'],
                    zindexes=None, nhybes = 9):
@@ -74,44 +77,21 @@ def wrappadappa_bead_xcorr(posname, md_pth):
 
 
 
-def find_pair_error(tvect, beads1, beads2):
-    #global naccepted, dists, naccepted2, residual
+def find_pair_error(tvect, beads1, beads2, return_more=False):
     beads2_reg = beads2+tvect
     tree = KDTree(beads1)
     b2_pair = [tree.query(p) for p in beads2_reg]
     dists, idx = zip(*b2_pair)
     b2_pair = [beads1[i] for i in idx]
-    #list(zip(dists, beads2, b2_pair))
     naccepted, idx = reject_outliers(dists)
-    for i in range(5):
+    for i in range(10):
         naccepted, idx = reject_outliers(naccepted)
-#     if len(naccepted)/len(dists) < 0.8:
-#         print('Warning lots of beads rejected')
     naccepted2, idx = reject_outliers(naccepted)
-#     if len(naccepted2)/len(dists) < 0.8:
-#         print('Warning lots of beads rejected')
-    residual = np.abs(np.median(naccepted2))
-    return residual
-
-def find_pair_error2(tvect, beads1, beads2):
-    #global naccepted, dists, naccepted2, residual
-    beads2_reg = beads2+tvect
-    tree = KDTree(beads1)
-    b2_pair = [tree.query(p) for p in beads2_reg]
-    dists, idx = zip(*b2_pair)
-    b2_pair = [beads1[i] for i in idx]
-    #list(zip(dists, beads2, b2_pair))
-    naccepted, idx = reject_outliers(dists)
-    for i in range(5):
-        naccepted, idx = reject_outliers(naccepted)
-#     if len(naccepted)/len(dists) < 0.8:
-#         print('Warning lots of beads rejected')
-    naccepted2, idx = reject_outliers(naccepted)
-#     if len(naccepted2)/len(dists) < 0.8:
-#         print('Warning lots of beads rejected')
-    residual = np.abs(np.median(naccepted2))
-    return residual, len(naccepted2), len(dists)
-
+    residual = np.abs(np.mean(naccepted2))
+    if return_more:
+        return residual, len(naccepted2), len(dists)
+    else:
+        return residual
 
 def reject_outliers(data, m=2):
     """
@@ -145,7 +125,7 @@ def optimize_tforms(bead_dict, seed_tforms, reg_ref='hybe1', verbose=False):
             tvect = optimize.fmin(find_pair_error, initial,
                                      args=(bead_ref, bead_dest), disp=verbose)
             opt_tforms[h] = tvect
-            residual, naccepted2, dists = find_pair_error2(tvect, bead_ref, bead_dest)
+            residual, naccepted2, dists = find_pair_error(tvect, bead_ref, bead_dest, return_more=True)
             tform_quality_metrics[h]['nbeads'] = naccepted2
             tform_quality_metrics[h]['bead_outlier_ratio'] = naccepted2/dists
             tform_quality_metrics[h]['residual'] = residual
@@ -171,7 +151,7 @@ if __name__ == "__main__":
         ncpu = ncpu[0]
     bead_dicts = pickle.load(open(args.bead_path, 'rb'))
     md = Metadata(args.md_path)
-    posnames = md.posnames
+    posnames = md.posnames[:12]
     base_path = md.base_pth
     if not base_path[-1]=='/':
         base_path=base_path+'/'
