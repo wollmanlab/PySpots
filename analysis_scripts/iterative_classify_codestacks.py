@@ -1,13 +1,17 @@
 from skimage import io
 import os
+from collections import defaultdict
 import numpy
 import numpy as np
+from sklearn.preprocessing import normalize
+from scipy.spatial import distance_matrix
 #from hybescope_config.microscope_config import *
 #from metadata import Metadata
 from functools import partial
 import importlib
 import multiprocessing
 import pickle
+import traceback
 
 if __name__ == '__main__':
     import argparse
@@ -16,8 +20,9 @@ if __name__ == '__main__':
     parser.add_argument("cword_config", type=str, help="Path to python file initializing the codewords and providing bitmap variable.")
 #     parser.add_argument("--posnames", type=str, help="Path pickle dictionary of tforms per position name.")
     #parser.add_argument("out_path", type=str, help="Path to save output.")
-    parser.add_argument("-p", "--nthreads", type=int, dest="ncpu", default=8, action='store', help="Number of cores to utilize (default 12).")
-    parser.add_argument("--posnames", dest="posnames", nargs='*', type=str, default=[], action='store', help="Number z-slices above and below to max project together.")
+    parser.add_argument("-p", "--nthreads", type=int, dest="ncpu", default=8, action='store', help="Number of cores to utilize (default 8x4MKL Threads).")
+#     parser.add_argument("--posnames", dest="posnames", nargs='*', type=str, default=[], action='store', help="Number z-slices above and below to max project together.")
+    parser.add_argument("-r", "--nrandom", type=int, dest="nrandom", default=50, action='store', help="Number of random positions to choose to fit norm_factor.")
     parser.add_argument("-n", "--niter", type=int, dest="niter", default=10, action='store', help="Number of iterations to perform.")
 #     parser.add_argument("-m", "--zmax", type=int, dest="zmax", default=15, action='store', help="End making max projections centered at zmax.")
 #     parser.add_argument("-i", "--zskip", type=int, dest="zskip", default=4, action='store', help="Skip this many z-slices between centers of max projections.")
@@ -95,7 +100,7 @@ def classify_codestack(cstk, norm_vector, codeword_vectors, csphere_radius=0.517
         class_img[i, :] = dv
     return class_img#.astype('int16')
 
-def mean_one_bits(cstk, class_img):#, nbits = 18):
+def mean_one_bits(cstk, class_img, cvectors):#, nbits = 18):
     """
     Calculate average intensity of classified pixels per codebits.
     
@@ -120,7 +125,7 @@ def mean_one_bits(cstk, class_img):#, nbits = 18):
         x, y = np.where(class_img==i)
         if len(x) == 0:
             continue
-        onebits = np.where(cvectors[i,:]==1)[0]
+        onebits = np.where(cvectors[i,:]==1.)[0]
         if len(onebits)<1:
             continue
         for i in onebits:
@@ -130,40 +135,28 @@ def mean_one_bits(cstk, class_img):#, nbits = 18):
 
 def robust_mean(x):
     return np.average(x, weights=np.ones_like(x) / len(x))
-
-def reclassify_file(f, nfactor):
-    """
-    Wrapper for iterative classification.
-    """
-    pth, pos = os.path.split(f)
-    print(pos)
-    a = pickle.load(open(os.path.join(base_path, p), 'rb'))
-    cstk = a['cstk']
-    #class_img = a['class_img']
-    new_class_img = classify_codestack(cstk, nfactor, nvectors)  
-    pickle.dump({'cstk': cstk, 'nf': nfactor,
-                 'class_img': new_class_img}, open(f, 'wb'))
-    return mean_one_bits(cstk, new_class_img)
-#     np.savez(os.path.join(base_path, p), cstk=cstk,
-#              class_img=new_class_img, norm_factor=nfactor)
                     
 def classify_file(f, nfactor, nvectors):
     """
     Wrapper for classify_codestack. Can change this instead of function if 
     intermediate file storage ever changes.
     """
+    cvectors = nvectors.copy()
+    np.place(cvectors, cvectors>0., 1.)
     try:
         pth, pos = os.path.split(f)
-        #print(pos)
+        print(pos)
         cstks, nfs, class_imgs = load_codestack_from_npz(f)
         for z in nfs.keys():
             cstk = cstks[z]
             new_class_img = classify_codestack(cstk, nfactor, nvectors)
             class_imgs[z] = new_class_img
-            new_nf = mean_one_bits(cstk, new_class_img)
+            new_nf = mean_one_bits(cstk, new_class_img, cvectors)
             nfs[z] = new_nf
         np.savez(os.path.join(pth, pos), cstks=cstks, norm_factors=nfs, class_imgs=class_imgs)
-    except:
+    except Exception as e:
+        print(e)
+        print(traceback.format_exc())
         return f
 #     pickle.dump({'cstk': cstk, 'nf': nfactor,
 #                  'class_img': new_class_img}, open(f, 'wb'))
@@ -173,6 +166,7 @@ def unix_find(pathin):
     """Return results similar to the Unix find command run without options
     i.e. traverse a directory tree and return all the file paths
     """
+    
     return [os.path.join(path, file)
             for (path, dirs, files) in os.walk(pathin)
             for file in files]
@@ -192,12 +186,18 @@ if __name__ == '__main__':
     normalized_gene_vectors = seqfish_config.norm_gene_codeword_vectors
     
     codestacks = unix_find(args.cstk_path)
-    print(codestacks)
+#     todo_cstks = []
+#     for f in codestacks:
+#         if any([True if p in f else False for p in args.posnames]):
+#             todo_cstks.append(f)
+#     print(todo_cstks)
+    codestacks = list(np.random.choice(codestacks, size=args.nrandom, replace=False))
     # iterative norm factor finding
 # Note preceding blocks and this can be noisy if restarted after crash etccc
     with multiprocessing.Pool(args.ncpu) as ppool:
         failed_positions = []
         for i in range(args.niter):
+            print('N Positions left: ', len(codestacks))
             if i == 0:
                 cur_nf = np.array(np.nanmean([mean_nfs_npz(c) for c in codestacks], axis=0))
                 print('90th Percentile Normalization factors:', cur_nf, sep='\n')
