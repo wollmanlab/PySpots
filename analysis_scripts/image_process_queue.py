@@ -8,16 +8,17 @@ from skimage import io, restoration
 #from codestack_creation import * # not sure why needed?
 from functools import partial
 
-import argparse
-parser = argparse.ArgumentParser()
-parser.add_argument("md_path", type=str, help="Path to root of imaging folder to initialize metadata.")
-parser.add_argument("out_path", type=str, help="Path to save output.")
-parser.add_argument("-p", "--nthreads", type=int, dest="ncpu", default=52, action='store', nargs=1, help="Number of cores to utilize (default 52).")
-parser.add_argument("--hotpixels", type=str, dest="hot_pixel_pth", default='/home/rfor10/repos/PySpots/hybescope_config/hot_pixels_aug2018.pkl', action='store', nargs=1, help="Path to file to use for hot pixels.")
-args = parser.parse_args()
-print(args)
+if __name__ == '__main__':
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("md_path", type=str, help="Path to root of imaging folder to initialize metadata.")
+    parser.add_argument("out_path", type=str, help="Path to save output.")
+    parser.add_argument("-p", "--nthreads", type=int, dest="ncpu", default=24, action='store', nargs=1, help="Number of cores to utilize (default 24).")
+    parser.add_argument("--hotpixels", type=str, dest="hot_pixel_pth", default='/home/rfor10/repos/PySpots/hybescope_config/hot_pixels_aug2018.pkl', action='store', nargs=1, help="Path to file to use for hot pixels.")
+    args = parser.parse_args()
+    print(args)
 
-hot_pixels = pickle.load(open(args.hot_pixel_pth, 'rb'))
+    hot_pixels = pickle.load(open(args.hot_pixel_pth, 'rb'))
 
 def dogonvole(image, psf, kernel=(2., 2., 0.), blur=(1.3, 1.3, 0.), niter=10):
     """
@@ -122,7 +123,7 @@ def worker(fname, q):
 #    print(fname)
     q.put(fname)
 
-def main(md_path, fn, ncpu, chunksize):
+def process_wrapper(md_path, fn, ncpu, chunksize):
     global base_path, out_path
     pfunc = partial(process_image_postimaging, out_path=out_path)
     with multiprocessing.Pool(ncpu) as p:
@@ -153,12 +154,13 @@ if __name__ == "__main__":
         assert(len(ncpu)==1)
         ncpu = ncpu[0]
     md = Metadata(args.md_path)
+    print('Number of images total: ', len(md.image_table.filename))
     base_path = md.base_pth
     if not base_path[-1]=='/':
         base_path=base_path+'/'
     #print(base_path)
     fn = os.path.join(args.out_path, 'processing.log')
-    chunksize=1
+    chunksize=100
     os.environ['MKL_NUM_THREADS'] = '1'
     os.environ['GOTO_NUM_THREADS'] = '1'
     os.environ['OMP_NUM_THREADS'] = '1'
@@ -166,5 +168,5 @@ if __name__ == "__main__":
     #print(out_path)
     if not os.path.exists(out_path):
         os.makedirs(out_path)
-    main(args.md_path, fn, ncpu, chunksize)
+    process_wrapper(args.md_path, fn, ncpu, chunksize)
 
