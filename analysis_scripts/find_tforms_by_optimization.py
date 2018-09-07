@@ -151,7 +151,7 @@ if __name__ == "__main__":
         ncpu = ncpu[0]
     bead_dicts = pickle.load(open(args.bead_path, 'rb'))
     md = Metadata(args.md_path)
-    posnames = md.posnames[:12]
+    posnames = md.posnames
     base_path = md.base_pth
     if not base_path[-1]=='/':
         base_path=base_path+'/'
@@ -187,5 +187,6 @@ if __name__ == "__main__":
                 continue
             good_positions[pos] = (tvec, quals)
         gposnames = list(good_positions.keys())
-        pickle.dump(good_positions, open(os.path.join(out_path, 'tforms.pkl'), 'wb'))
+        #pickle.dump(good_positions, open(os.path.join(out_path, 'tforms.pkl'), 'wb'))
+        pickle.dump(good_positions, open(out_path, 'wb'))
     print('Number good positoins: ', len(good_positions))
