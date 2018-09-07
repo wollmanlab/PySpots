@@ -109,6 +109,8 @@ def optimize_tforms(bead_dict, seed_tforms, reg_ref='hybe1', verbose=False):
     the bead candidate coordinates.
     """
     #pos = posnames[11]
+    bead_dict = bead_dict.copy()
+    seed_tforms = seed_tforms.copy()
     try:
         if 'nucstain' in bead_dict:
             nucs = bead_dict.pop('nucstain')
@@ -144,7 +146,7 @@ if __name__ == "__main__":
     #fn = '/home/rfor10/deconv_endos.log'
 #    md_path = sys.argv[1]
     residual_thresh = 1.5
-    good_bead_bad_bead_ratio_thresh = 0.8
+    good_bead_bad_bead_ratio_thresh = 0.5
     ncpu = args.ncpu
     if isinstance(ncpu, list):
         assert(len(ncpu)==1)
