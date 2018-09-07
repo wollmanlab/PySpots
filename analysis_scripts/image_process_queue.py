@@ -117,7 +117,7 @@ def process_image_postimaging(fname, out_path, min_thresh=5./2**16, niter=15, ui
 def worker(fname, q):
     '''stupidly simulates long running process'''
     try:
-    	freturn = process_image_postimaging(fname)
+        return = process_image_postimaging(fname)
     except Exception as e:
         print(e)
 #    print(fname)
@@ -146,27 +146,25 @@ def process_wrapper(md_path, fn, ncpu, chunksize):
 
 
 if __name__ == "__main__":
-    #md_path = '/data/hybe_endo_100k_2018Aug06'
-    #fn = '/home/rfor10/deconv_endos.log'
-#    md_path = sys.argv[1]
     ncpu = args.ncpu
+    md_path = args.md_path
+    out_path = args.out_path
     if isinstance(ncpu, list):
         assert(len(ncpu)==1)
         ncpu = ncpu[0]
-    md = Metadata(args.md_path)
+    md = Metadata(md_path)
     print('Number of images total: ', len(md.image_table.filename))
     base_path = md.base_pth
     if not base_path[-1]=='/':
         base_path=base_path+'/'
     #print(base_path)
-    fn = os.path.join(args.out_path, 'processing.log')
+    fn = os.path.join(out_path, 'processing.log')
     chunksize=100
     os.environ['MKL_NUM_THREADS'] = '1'
     os.environ['GOTO_NUM_THREADS'] = '1'
     os.environ['OMP_NUM_THREADS'] = '1'
-    out_path = args.out_path
     #print(out_path)
     if not os.path.exists(out_path):
         os.makedirs(out_path)
-    process_wrapper(args.md_path, fn, ncpu, chunksize)
+    process_wrapper(md_path, fn, ncpu, chunksize)
 
