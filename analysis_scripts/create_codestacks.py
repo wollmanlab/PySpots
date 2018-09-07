@@ -126,7 +126,7 @@ if __name__=='__main__':
     print(args)
     seqfish_config = importlib.import_module(args.cword_config)
     pfunc = partial(multi_z_pseudo_maxprjZ_wrapper, md_path=args.md_path, bitmap=seqfish_config.bitmap, k=args.k, zstart=args.zstart, zskip=args.zskip, zmax=args.zmax, cstk_save_dir=args.out_path)
-    good_positions = pickle.load(open(args.tforms_path, 'rb'))
+    good_positions = pickle.load(open(args.tforms_path, 'rb'))['good']
     func_inputs = []
     for p, (t, q) in good_positions.items():
         tforms_xyz = {k: (v[0], v[1], int(np.round(np.mean(v[2])))) for k, v in t.items()}

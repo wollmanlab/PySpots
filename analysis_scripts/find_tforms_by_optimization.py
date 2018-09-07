@@ -131,6 +131,8 @@ def optimize_tforms(bead_dict, seed_tforms, reg_ref='hybe1', verbose=False):
             tform_quality_metrics[h]['nbeads'] = naccepted2
             tform_quality_metrics[h]['bead_outlier_ratio'] = naccepted2/dists
             tform_quality_metrics[h]['residual'] = residual
+            tform_quality_metrics[h]['all_bead_dists'] = dists
+            tform_quality_metrics[h]['accepted_bead_dists'] = naccepted2
         opt_tforms[reg_ref] = np.array((0,0,0))
         bead_dict[reg_ref] = bead_ref
         if popped:
@@ -142,36 +144,36 @@ def optimize_tforms(bead_dict, seed_tforms, reg_ref='hybe1', verbose=False):
         return 'Error'
 
 if __name__ == "__main__":
-    #md_path = '/data/hybe_endo_100k_2018Aug06'
-    #fn = '/home/rfor10/deconv_endos.log'
-#    md_path = sys.argv[1]
     residual_thresh = 1.5
     good_bead_bad_bead_ratio_thresh = 0.5
+    nbeads_thresh = 40
     ncpu = args.ncpu
+    bead_path = args.bead_path
+    md_path = args.md_path
+    out_path = args.out_path
     if isinstance(ncpu, list):
         assert(len(ncpu)==1)
         ncpu = ncpu[0]
-    bead_dicts = pickle.load(open(args.bead_path, 'rb'))
-    md = Metadata(args.md_path)
+    bead_dicts = pickle.load(open(bead_path, 'rb'))
+    md = Metadata(md_path)
     posnames = md.posnames
     base_path = md.base_pth
     if not base_path[-1]=='/':
         base_path=base_path+'/'
-    #print(base_path)
-    #fn = os.path.join(args.out_path, 'processing.log')
     chunksize=1
-    os.environ['MKL_NUM_THREADS'] = '4'
-    os.environ['GOTO_NUM_THREADS'] = '4'
-    os.environ['OMP_NUM_THREADS'] = '4'
-    out_path = args.out_path
+    os.environ['MKL_NUM_THREADS'] = '2'
+    os.environ['GOTO_NUM_THREADS'] = '2'
+    os.environ['OMP_NUM_THREADS'] = '2'
+    out_path = out_path
     #print(out_path)
-    pfunc_xcorr = partial(wrappadappa_bead_xcorr, md_pth=args.md_path)
+    pfunc_xcorr = partial(wrappadappa_bead_xcorr, md_pth=md_path)
     with multiprocessing.Pool(ncpu) as ppool:
         results = ppool.map(pfunc_xcorr, posnames)
         seed_tforms = {p:k for p,k in results}
         func_inputs = [(bead_dicts[p], seed_tforms[p]) for p in posnames]
         results = ppool.starmap(optimize_tforms, func_inputs)
         good_positions = {}
+        bad_positions = {}
         r = []
         n = []
         q = []
@@ -180,15 +182,19 @@ if __name__ == "__main__":
             residuals = [i['residual'] for i in quals.values()]
             nbeads = [i['nbeads'] for i in quals.values()]
             ratio = [i['bead_outlier_ratio'] for i in quals.values()]
+            bead_dists = [i['all_bead_dists'] for i in quals.values()]
+            accepted_bead_dists = [i['accepted_bead_dists'] for i in quals.values()]
             r += residuals
             n += nbeads
             q += ratio
             if np.amax(residuals) > residual_thresh:
+                bad_positions[pos] = (tvec, quals)
                 continue
-            if np.amin(ratio) < good_bead_bad_bead_ratio_thresh:
+            if np.amin(nbeads) < nbeads_thresh and (np.amin(ratio) < good_bead_bad_bead_ratio_thresh):
+                bad_positions[pos] = (tvec, quals)
                 continue
             good_positions[pos] = (tvec, quals)
         gposnames = list(good_positions.keys())
         #pickle.dump(good_positions, open(os.path.join(out_path, 'tforms.pkl'), 'wb'))
-        pickle.dump(good_positions, open(out_path, 'wb'))
+        pickle.dump({'good': good_positions, 'bad': bad_positions}, open(out_path, 'wb'))
     print('Number good positoins: ', len(good_positions))
