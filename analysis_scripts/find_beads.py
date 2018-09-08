@@ -2,8 +2,10 @@ import os
 import numpy
 import pickle
 from skimage import io
+import multiprocessing
 from itertools import repeat
 import multiprocessing as mp
+from functools import partial
 from metadata import Metadata
 from scipy.spatial import KDTree
 from collections import defaultdict
@@ -19,7 +21,7 @@ if __name__ == '__main__':
     parser.add_argument("-b", "--beadprofile", type=str, action='store', dest="ave_bead_path",
                         default='/bigstore/Images2018/Zach/FISH_Troubleshooting/Transverse_Second_2018Aug24/Analysis/results/Avg_Bead.pkl')
     args = parser.parse_args()
-
+    print(args)
 
 def keep_which(stk, peaks, w=3, sz = 7):
     imsz = stk.shape
@@ -65,25 +67,25 @@ def find_beads_3D(fnames_list, bead_template, match_threshold=0.75):
     ref_beads = ref_beads[keep_list, :]
     return ref_beads
 
-def add_bead_data(fnames_dict, pos, ave_bead):
-    #Check if you have beads from before
-    if os.path.exists(os.path.join(bead_path,pos)):
-        bead_dict = pickle.load(open(os.path.join(bead_path,pos), 'rb'))
-        for h in fnames_dict.keys():
-            if h in bead_dict.keys():
-                continue
-            else:
-                beads = find_beads_3D(fnames_dict[h], ave_bead)
-                bead_dict[h] = beads
-        print('Finished', pos)
-        
+def add_bead_data(bead_dicts,ave_bead, Input):
+    fnames_dict = Input['fname_dicts']
+    pos = Input['posnames']
+    print('starting', pos)
+    if pos in bead_dicts.keys():
+        bead_dict = bead_dicts[pos]
     else:
         bead_dict = {}
-        for h in fnames_dict.keys():
+    for h in fnames_dict.keys():
+        #convert to hybe1 not hybe1_4
+        H = h.split('_')[0]
+        if H in bead_dict.keys():
+            continue
+        else:
             beads = find_beads_3D(fnames_dict[h], ave_bead)
-            bead_dict[h] = beads
-        print('Finished', pos)
-    pickle.dump(bead_dict, open(os.path.join(bead_path,pos), 'wb'))
+            bead_dict[H] = beads
+    print('Finished', pos)
+    return bead_dict, pos
+    #pickle.dump(bead_dict, open(os.path.join(bead_path,pos), 'wb'))
     
 if __name__ == '__main__':
     #Setting up paths
@@ -112,6 +114,7 @@ if __name__ == '__main__':
     md = Metadata(deconvolved_path)
     md.image_table = md.image_table[[True if 'hybe' in i else False for i in md.image_table.acq]]
     posnames = md.posnames
+    print('posnames loaded')
     hybe_list = sorted([i.split('_')[0] for i in md.acqnames if 'hybe' in i])
     if zindexes == -1:
         fnames_dicts = [md.stkread(Channel='DeepBlue', Position=pos,
@@ -121,8 +124,14 @@ if __name__ == '__main__':
         fnames_dicts = [md.stkread(Channel='DeepBlue', Position=pos,
                            fnames_only=True, groupby='acq', 
                           hybe=hybe_list, Zindex=zindexes) for pos in posnames]
-
-    #should move this to a better place probably just replace pyspots ave bead and import it
+    print('fnames loaded')
+    Input = list()
+    for i in range(len(fnames_dicts)):
+        dictionary = defaultdict(dict)
+        dictionary['fname_dicts'] = fnames_dicts[i]
+        dictionary['posnames']= posnames[i]
+        Input.append(dictionary)
+        
     Ave_Bead = pickle.load(open(ave_bead_path, 'rb'))
 
     #Setting up parrallel pool
@@ -130,14 +139,24 @@ if __name__ == '__main__':
     os.environ['GOTO_NUM_THREADS'] = '3'
     os.environ['OMP_NUM_THREADS'] = '3'
     #Finding Beads
-    with mp.Pool(ncpu) as ppool:
-        ppool.starmap(add_bead_data, zip(fnames_dicts, posnames, repeat(Ave_Bead, len(posnames))))
-    #Combining beads to one file
-    bead_dicts = defaultdict(dict)
-    for files in os.listdir(bead_path):
-        fi = os.path.join(bead_path,files)
-        d = pickle.load(open(fi, 'rb'))
-        d = {k.split('_')[0]:v for k, v in d.items()}
-        bpth, pos = os.path.split(fi)
-        bead_dicts[pos].update(d)
-    pickle.dump(bead_dicts, open(os.path.join(results_path,'beads.pkl'), 'wb'))
+    if os.path.exists(os.path.join(results_path,'beads.pkl')):
+        bead_dicts = pickle.load(open(os.path.join(results_path,'beads.pkl'), 'rb'))
+    else:
+        bead_dicts = defaultdict(dict)
+    pfunc = partial(add_bead_data,bead_dicts,Ave_Bead)
+    with multiprocessing.Pool(ncpu) as p:
+        for Bead_dict,Pos in p.imap(pfunc, Input, chunksize=1):
+            bead_dicts[Pos] = Bead_dict
+            pickle.dump(bead_dicts, open(os.path.join(results_path,'beads.pkl'), 'wb'))
+        
+#    with mp.Pool(ncpu) as ppool:
+#        ppool.starmap(add_bead_data, zip(fnames_dicts, posnames, repeat(Ave_Bead, len(posnames))))
+   #Combining beads to one file
+#    bead_dicts = defaultdict(dict)
+#    for files in os.listdir(bead_path):
+#        fi = os.path.join(bead_path,files)
+#        d = pickle.load(open(fi, 'rb'))
+#        d = {k.split('_')[0]:v for k, v in d.items()}
+#        bpth, pos = os.path.split(fi)
+#        bead_dicts[pos].update(d)
+#    pickle.dump(bead_dicts, open(os.path.join(results_path,'beads.pkl'), 'wb'))
