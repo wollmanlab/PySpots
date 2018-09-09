@@ -24,11 +24,12 @@ if __name__ == '__main__':
     parser.add_argument("-s", "--zstart", type=int, dest="zstart", default=4, action='store', help="Start making max projections centered at zstart.")
     parser.add_argument("-m", "--zmax", type=int, dest="zmax", default=15, action='store', help="End making max projections centered at zmax.")
     parser.add_argument("-i", "--zskip", type=int, dest="zskip", default=4, action='store', help="Skip this many z-slices between centers of max projections.")
+    parser.add_argument("--decon_iters", type=int, dest="niter", default=20, action='store', help="Skip this many z-slices between centers of max projections.")
 
     args = parser.parse_args()
 
 
-def multi_z_pseudo_maxprjZ_wrapper(posname, tforms_xy, tforms_z, md_path, bitmap, cstk_save_dir, reg_ref='hybe1', zstart=5, k=2, zskip=4, zmax=26):
+def multi_z_pseudo_maxprjZ_wrapper(posname, tforms_xy, tforms_z, md_path, bitmap, cstk_save_dir, reg_ref='hybe1', zstart=5, k=2, zskip=4, zmax=26, ndecon_iter = 20):
     codestacks = {}
     norm_factors = {}
     class_imgs = {}
@@ -42,7 +43,7 @@ def multi_z_pseudo_maxprjZ_wrapper(posname, tforms_xy, tforms_z, md_path, bitmap
     np.savez(os.path.join(cstk_save_dir, posname), cstks=codestacks, 
             norm_factors = norm_factors, class_imgs = class_imgs)
 
-def pseudo_maxproject_positions_and_tform(posname, md_path, tforms_xy, tforms_z, bitmap, zstart=6, k=2, reg_ref = 'hybe1'):
+def pseudo_maxproject_positions_and_tform(posname, md_path, tforms_xy, tforms_z, bitmap, zstart=6, k=2, reg_ref = 'hybe1', ndecon_iter=20):
     """
     Wrapper for multiple Z codestack where each is max_projection of few frames above and below.
     """
@@ -60,7 +61,7 @@ def pseudo_maxproject_positions_and_tform(posname, md_path, tforms_xy, tforms_z,
         zstk = md.stkread(Channel=chan, hybe=hybe,
                           Position=posname, Zindex=zindexes)
         zstk = zstk.max(axis=2)
-        zstk = tform_image(zstk, chan, t)
+        zstk = tform_image(zstk, chan, t, niter=ndecon_iter)
         cstk.append(zstk)
         del zstk
     cstk = np.stack(cstk, axis=2)
@@ -161,12 +162,20 @@ def interp_warp(img, x, y):
     return nimg
         
 if __name__=='__main__':
+    niter = args.niter
+    md_path = args.md_path
+    k = args.k
+    zstart = args.zstart
+    zskip = args.zskip
+    zmax = args.zmax
+    out_path = args.out_path
+    
     os.environ['MKL_NUM_THREADS'] = '4'
     os.environ['GOTO_NUM_THREADS'] = '4'
     os.environ['OMP_NUM_THREADS'] = '4'
     print(args)
     seqfish_config = importlib.import_module(args.cword_config)
-    pfunc = partial(multi_z_pseudo_maxprjZ_wrapper, md_path=args.md_path, bitmap=seqfish_config.bitmap, k=args.k, zstart=args.zstart, zskip=args.zskip, zmax=args.zmax, cstk_save_dir=args.out_path)
+    pfunc = partial(multi_z_pseudo_maxprjZ_wrapper, md_path=args.md_path, bitmap=seqfish_config.bitmap, k=args.k, zstart=args.zstart, zskip=args.zskip, zmax=args.zmax, cstk_save_dir=args.out_path, ndecon_iter=niter)
     good_positions = pickle.load(open(args.tforms_path, 'rb'))['good']
     func_inputs = []
     for p, (t, q) in good_positions.items():
