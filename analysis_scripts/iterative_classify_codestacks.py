@@ -130,8 +130,14 @@ def mean_one_bits(cstk, class_img, cvectors):#, nbits = 18):
             continue
         for i in onebits:
             bitvalues[i].append(np.mean(cstk[x, y, i]))
-    mean_bits = np.array([robust_mean(bitvalues[i]) for i in range(nbits)])
-    return mean_bits
+    mean_bits = []
+    for i in range(nbits):
+        bvals = bitvalues[i]
+        if len(bvals) == 0:
+            mean_bits.append(np.nan)
+        else:
+            mean_bits.append(robust_mean(bitvalues[i]))
+    return np.array(mean_bits)
 
 def robust_mean(x):
     return np.average(x, weights=np.ones_like(x) / len(x))
@@ -147,7 +153,8 @@ def classify_file(f, nfactor, nvectors):
         pth, pos = os.path.split(f)
         print(pos)
         cstks, nfs, class_imgs = load_codestack_from_npz(f)
-        for z in nfs.keys():
+        nfs = {}
+        for z in cstks.keys():
             cstk = cstks[z]
             new_class_img = classify_codestack(cstk, nfactor, nvectors)
             class_imgs[z] = new_class_img
