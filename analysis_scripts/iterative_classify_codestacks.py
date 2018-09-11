@@ -34,6 +34,7 @@ def mean_nfs_npz(fname):
     """
     data = np.load(fname)
     nfs = data['norm_factors'].tolist()
+    data.close()
     return np.mean([n for k, n in nfs.items()], axis=0)
 
 def load_codestack_from_npz(fname):
@@ -57,6 +58,7 @@ def load_codestack_from_npz(fname):
     cstk = data['cstks'][()]
     class_imgs = data['class_imgs'][()]
     nfs = data['norm_factors'][()]
+    data.close()
     return cstk, nfs, class_imgs
 
 
