@@ -68,7 +68,7 @@ def pseudo_maxproject_positions_and_tform(posname, md_path, tforms_xy, tforms_z,
     nf = np.percentile(cstk, 90, axis=(0, 1))
     return cstk, nf
 
-def tform_image(cstk, channel, tvect, niter=15):
+def tform_image(cstk, channel, tvect, niter=20):
     """
     Warp images to correct chromatic abberation and translational stage drift.
     

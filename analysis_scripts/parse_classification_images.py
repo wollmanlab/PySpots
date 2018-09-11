@@ -1,5 +1,6 @@
 from skimage.measure import regionprops, label
 import pandas as pd
+import numpy as np
 def parse_classification_image(class_img, cstk, cvectors, genes, zindex):
     #class_imgs = data['class_img']
     #cstk = data['cstk']
