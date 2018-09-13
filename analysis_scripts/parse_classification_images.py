@@ -1,6 +1,7 @@
 from skimage.measure import regionprops, label
 import pandas as pd
 import numpy as np
+from collections import defaultdict
 def parse_classification_image(class_img, cstk, cvectors, genes, zindex):
     #class_imgs = data['class_img']
     #cstk = data['cstk']
@@ -50,6 +51,7 @@ def parse_classification_image(class_img, cstk, cvectors, genes, zindex):
 def multi_z_class_parse_wrapper(f, cvectors, genes):
     data = np.load(f)
     cstks, nfs, class_imgs = data['cstks'].tolist(), data['norm_factors'].tolist(), data['class_imgs'].tolist()
+    data.close()
     merged_df =[]
     for z, cstk in cstks.items():
         df, bvs = parse_classification_image(class_imgs[z], cstk, cvectors, genes, z)
