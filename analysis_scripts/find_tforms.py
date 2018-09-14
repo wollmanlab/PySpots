@@ -4,6 +4,7 @@ from collections import Counter, defaultdict
 import numpy as np
 import pickle
 import scipy
+import os
 
 if __name__ == '__main__':
     import argparse
