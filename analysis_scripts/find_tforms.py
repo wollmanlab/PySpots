@@ -103,17 +103,21 @@ if __name__ == '__main__':
     for pos in hybe_dict.keys():
         results = ensembl_bead_reg(hybe_dict[pos])
         goodness = 0
-        for hybe in results.keys():
-            if type(results[hybe][0]) == str:
-                goodness = goodness + 1
-                print(pos, hybe, 'not enough bead pairs found')
-            elif results[hybe][1] > args.max_thresh:
-                goodness = goodness + 1
-                print(pos, hybe, 'residual is too high',results[hybe][1]) 
-        if goodness > 0:
-            tforms_dict['bad'][pos] = results
-            print(pos, 'no bueno')
+        if type(results) != dict;
+            print('No beads in', pos)
+            continue
         else:
-            tforms_dict['good'][pos] = results
-            print(pos, 'all good')
+            for hybe in results.keys():
+                if type(results[hybe][0]) == str:
+                    goodness = goodness + 1
+                    print(pos, hybe, 'not enough bead pairs found')
+                elif results[hybe][1] > args.max_thresh:
+                    goodness = goodness + 1
+                    print(pos, hybe, 'residual is too high',results[hybe][1]) 
+            if goodness > 0:
+                tforms_dict['bad'][pos] = results
+                print(pos, 'no bueno')
+            else:
+                tforms_dict['good'][pos] = results
+                print(pos, 'all good')
     pickle.dump(tforms_dict,open(os.path.join(args.out_path,'tforms.pkl'),'wb'))
