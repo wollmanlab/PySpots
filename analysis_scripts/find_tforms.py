@@ -106,8 +106,10 @@ if __name__ == '__main__':
         for hybe in results.keys():
             if type(results[hybe][0]) == str:
                 goodness = goodness + 1
+                print(pos, hybe, 'not enough bead pairs found')
             elif results[hybe][1] > args.max_thresh:
                 goodness = goodness + 1
+                print(pos, hybe, 'residual is too high',results[hybe][1]) 
         if goodness > 0:
             tforms_dict['bad'][pos] = results
             print(pos, 'no bueno')
