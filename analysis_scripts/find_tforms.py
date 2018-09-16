@@ -1,6 +1,7 @@
 from sklearn.cluster import DBSCAN
 from scipy.spatial import KDTree
 from collections import Counter, defaultdict
+import multiprocessing
 import numpy as np
 import pickle
 import scipy
@@ -11,12 +12,12 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("bead_path", type=str, help="Path pickle dictionary of candidate beads per position name.")
     parser.add_argument("out_path", type=str, help="Path to save output.")
-    parser.add_argument("-p", "--nthreads", type=int, dest="ncpu", default=4, action='store', nargs=1, help="Number of cores to utilize (default 4).")
-    parser.add_argument("-t", "--resthresh", type=int, dest="max_thresh", default=1.5, action='store', nargs=1, help="maximum residual to allow")
+    parser.add_argument("-p", "--nthreads", type=int, dest="ncpu", default=4, action='store', help="Number of cores to utilize (default 4).")
+    parser.add_argument("-t", "--resthresh", type=float, dest="max_thresh", default=1.5, action='store', help="maximum residual to allow")
     args = parser.parse_args()
     print(args)
 
-def ensembl_bead_reg(hybe_dict, reg_ref='hybe1', max_dist=200,
+def ensembl_bead_reg(inputs, reg_ref='hybe1', max_dist=200,
                      dbscan_eps=3, dbscan_min_samples=20):
     """
     Given a set of candidate bead coordinates (xyz) and a reference hybe find min-error translation.
@@ -42,6 +43,8 @@ def ensembl_bead_reg(hybe_dict, reg_ref='hybe1', max_dist=200,
     
     The best translation is found my minimizing the mean-squared error between source/destination after pairing.
     """
+    hybe_dict = inputs['hybe_dict']
+    pos = inputs['posname']
     # Final optimization objective function
     def error_func(translation):
         fit = np.add(translation, dest)
@@ -93,32 +96,39 @@ def ensembl_bead_reg(hybe_dict, reg_ref='hybe1', max_dist=200,
         # Optimize translation to map paired beads onto each other
         opt_t = scipy.optimize.fmin(error_func, np.mean(t_est, axis=0), full_output=True, disp=False)
         results[h] = (opt_t[0], opt_t[1], sum(paired_beads_idx))
-    return results
+    return pos, results
 
 if __name__ == '__main__':
     hybe_dict = pickle.load(open(args.bead_path,'rb'))
     tforms_dict = defaultdict(dict)
     tforms_dict['good'] = defaultdict(dict)
     tforms_dict['bad'] = defaultdict(dict)
-    for pos in hybe_dict.keys():
-        results = ensembl_bead_reg(hybe_dict[pos])
-        goodness = 0
-        if type(results) != dict:
-            print('No beads in', pos)
-            continue
-        else:
-            for hybe in results.keys():
-                if type(results[hybe][0]) == str:
-                    goodness = goodness + 1
-                    print(pos, hybe, 'not enough bead pairs found')
-                elif results[hybe][1] > args.max_thresh:
-                    goodness = goodness + 1
-                    print(pos, hybe, 'residual is too high',results[hybe][1]) 
-            if goodness == 0:
-                tforms_dict['good'][pos] = results
-                print(pos, 'all good')
+    pnames = list(hybe_dict.keys())
+    with multiprocessing.Pool(args.ncpu) as ppool:
+        for result in ppool.imap(ensembl_bead_reg, [{'posname': pos, 'hybe_dict': hybe_dict[pos]} for pos in pnames]):
+            try:
+                pos, results = result
+            except:
+                print(result)
+            goodness = 0
+            if type(results) != dict:
+                print('No beads in', pos)
+                continue
             else:
-                tforms_dict['bad'][pos] = results
-                print(pos, 'no bueno')
-    print('Finished finding tforms')
-    pickle.dump(tforms_dict,open(os.path.join(args.out_path,'tforms.pkl'),'wb'))
+                for hybe in results.keys():
+                    print(results[hybe][1])
+                    if isinstance(results[hybe][0], str):
+                        goodness = goodness + 1
+                        print(pos, hybe, 'not enough bead pairs found')
+                    elif results[hybe][1] > args.max_thresh:
+                        goodness = goodness + 1
+                        print(pos, hybe, 'residual is too high',results[hybe][1]) 
+                if goodness == 0:
+                    tforms_dict['good'][pos] = results
+                    print(pos, 'all good')
+                else:
+                    tforms_dict['bad'][pos] = results
+                    print(pos, 'no bueno')
+        print('Finished finding tforms')
+        print(len(tforms_dict['good']), len(tforms_dict['bad']))
+    pickle.dump(tforms_dict,open(args.out_path,'wb'))
