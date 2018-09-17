@@ -109,6 +109,7 @@ if __name__ == '__main__':
             try:
                 pos, results = result
             except:
+                continue
                 print(result)
             goodness = 0
             if type(results) != dict:

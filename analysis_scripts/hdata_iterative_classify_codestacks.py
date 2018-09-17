@@ -37,31 +37,6 @@ def mean_nfs_npz(fname):
     data.close()
     return np.nanmean([n for k, n in nfs.items()], axis=0)
 
-def load_codestack_from_npz(fname):
-    """
-    Load saved codestack data.
-    
-    Parameters
-    ----------
-    fname : str, filestream
-    
-    Returns
-    -------
-    cstk : dict
-        Dictionary of (y,x,nbits) arrays at different Z's
-    nfs : array
-        
-    class_imgs : dict
-        Dictionary of (y,x) arrays at different Z's of gene classifications
-    """
-    data = np.load(fname)
-    cstk = data['cstks'][()]
-    class_imgs = data['class_imgs'][()]
-    nfs = data['norm_factors'][()]
-    data.close()
-    return cstk, nfs, class_imgs
-
-
 def classify_codestack(cstk, norm_vector, codeword_vectors, csphere_radius=0.5176):
     """
     Pixel based classification of codestack into gene_id pixels.
@@ -151,18 +126,21 @@ def classify_file(f, nfactor, nvectors):
     """
     cvectors = nvectors.copy()
     np.place(cvectors, cvectors>0., 1.)
+    hdata = HybeData(f)
     try:
         pth, pos = os.path.split(f)
         print(pos)
-        cstks, nfs, class_imgs = load_codestack_from_npz(f)
+        zindexes = hdata.metadata.zindex.unique()
+        #cstks, nfs, class_imgs = load_codestack_from_npz(f)
         nfs = {}
-        for z in cstks.keys():
-            cstk = cstks[z]
+        for z in zindexes:
+            cstk = hdata.load_data(pos, z, 'cstk')
             new_class_img = classify_codestack(cstk, nfactor, nvectors)
-            class_imgs[z] = new_class_img
+            hdata.add_and_save_data(new_class_img, pos, z, 'cimg')
+            #class_imgs[z] = new_class_img
             new_nf = mean_one_bits(cstk, new_class_img, cvectors)
-            nfs[z] = new_nf
-        np.savez(os.path.join(pth, pos), cstks=cstks, norm_factors=nfs, class_imgs=class_imgs)
+            hdata.add_and_save_data(new_nf, pos, z, 'nf')
+        #np.savez(os.path.join(pth, pos), cstks=cstks, norm_factors=nfs, class_imgs=class_imgs)
     except Exception as e:
         print(e)
         print(traceback.format_exc())
