@@ -10,8 +10,9 @@ from scipy.spatial import distance_matrix
 from functools import partial
 import importlib
 import multiprocessing
-import pickle
+import dill as pickle
 import traceback
+from analysis_scripts.decon_codestacks import HybeData
 
 if __name__ == '__main__':
     import argparse
@@ -28,14 +29,13 @@ if __name__ == '__main__':
 #     parser.add_argument("-i", "--zskip", type=int, dest="zskip", default=4, action='store', help="Skip this many z-slices between centers of max projections.")
     args = parser.parse_args()
     
-def mean_nfs_npz(fname):
+def mean_nfs(hdata, pos):
     """
     Iterate through codestacks and average norm factors.
     """
-    data = np.load(fname)
-    nfs = data['norm_factors'].tolist()
-    data.close()
-    return np.nanmean([n for k, n in nfs.items()], axis=0)
+    zidxes = hdata.metadata.zindex.unique()
+    nfs = [hdata.load_data(pos, z, 'nf') for z in zidxes]
+    return np.nanmean(nfs, axis=0)
 
 def classify_codestack(cstk, norm_vector, codeword_vectors, csphere_radius=0.5176):
     """
@@ -119,7 +119,7 @@ def mean_one_bits(cstk, class_img, cvectors):#, nbits = 18):
 def robust_mean(x):
     return np.average(x, weights=np.ones_like(x) / len(x))
                     
-def classify_file(f, nfactor, nvectors):
+def classify_file(hdata, nfactor, nvectors):
     """
     Wrapper for classify_codestack. Can change this instead of function if 
     intermediate file storage ever changes.
@@ -172,28 +172,21 @@ if __name__ == '__main__':
     bitmap = seqfish_config.bitmap
     normalized_gene_vectors = seqfish_config.norm_gene_codeword_vectors
     
-    codestacks = unix_find(args.cstk_path)
-#     todo_cstks = []
-#     for f in codestacks:
-#         if any([True if p in f else False for p in args.posnames]):
-#             todo_cstks.append(f)
-#     print(todo_cstks)
-    codestacks = list(np.random.choice(codestacks, size=args.nrandom, replace=False))
-    # iterative norm factor finding
+    hybedatas = [(i, HybeData(i)) for i in os.listdir(args.cstk_path) if os.path.isdir(os.path.join(args.cstk_path, i))]
+    
 # Note preceding blocks and this can be noisy if restarted after crash etccc
     with multiprocessing.Pool(args.ncpu) as ppool:
         failed_positions = []
         for i in range(args.niter):
             print('N Positions left: ', len(codestacks))
             if i == 0:
-                cur_nf = np.array(np.nanmean([mean_nfs_npz(c) for c in codestacks], axis=0))
+                cur_nf = np.array(np.nanmean([mean_nfs(hdata, pos) for pos, hdata in hybedatas], axis=0))
                 print('90th Percentile Normalization factors:', cur_nf, sep='\n')
             else:
-                new_nfs = np.array([mean_nfs_npz(c) for c in codestacks])
-                cur_nf = np.nanmean(new_nfs, axis=0)
+                cur_nf = np.array(np.nanmean([mean_nfs(hdata, pos) for pos, hdata in hybedatas], axis=0))
                 print(cur_nf)
             classify_pfunc = partial(classify_file, nfactor=cur_nf, nvectors=normalized_gene_vectors)
-            results = ppool.map(classify_pfunc, codestacks)
+            results = ppool.map(classify_pfunc, [i[1] for i in hybedatas])
             # Returns None if execution successful else returns fname
             for idx, r in enumerate(results):
                 if r is None:
