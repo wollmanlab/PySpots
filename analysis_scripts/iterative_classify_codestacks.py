@@ -35,7 +35,7 @@ def mean_nfs_npz(fname):
     data = np.load(fname)
     nfs = data['norm_factors'].tolist()
     data.close()
-    return np.mean([n for k, n in nfs.items()], axis=0)
+    return np.nanmean([n for k, n in nfs.items()], axis=0)
 
 def load_codestack_from_npz(fname):
     """
