@@ -51,6 +51,8 @@ def parse_classification_image(class_img, cstk, cvectors, genes, zindex):
 def multi_z_class_parse_wrapper(f, cvectors, genes):
     data = np.load(f)
     cstks, nfs, class_imgs = data['cstks'].tolist(), data['norm_factors'].tolist(), data['class_imgs'].tolist()
+    cvectors = cvectors.copy()
+    np.place(cvectors, cvectors>0, 1.)
     data.close()
     merged_df =[]
     for z, cstk in cstks.items():
@@ -58,3 +60,34 @@ def multi_z_class_parse_wrapper(f, cvectors, genes):
         df['z'] = z
         merged_df.append(df)
     return pd.concat(merged_df, ignore_index=True)
+
+def find_bitwise_error_rate(df, cvectors, norm_factor):
+    cvectors = cvectors.copy()
+    np.place(cvectors, cvectors>0., 1.)
+    error_counts = Counter()
+    bit_freq = Counter()
+    for idx, row in df.iterrows():
+        if idx % 1000 == 0:
+            print(idx)
+        cword = cvectors[row.cword_idx]
+        cidx = np.where(cword==1.)[0]
+        cnf = norm_factor[cidx]#/1.5
+        bit_freq.update(cidx)
+        bmeans = np.mean(row.pixel_values, axis=0)
+        norm_bmeans = np.divide(bmeans, cnf)
+        dists = distance_matrix(norm_bmeans[np.newaxis, :], [[1, 1, 1, 1],
+                                                 [0, 1, 1, 1], 
+                                                 [1, 0, 1, 1],
+                                                 [1, 1, 0, 1],
+                                                 [1, 1, 1, 0]])
+        min_dist = np.argmin(dists)
+        if min_dist == 0:
+            continue
+        else:
+            berror = cidx[min_dist-1]
+            error_counts[berror]+=1
+        #print(berror)
+        #break
+    return error_counts, bit_freq
+
+
