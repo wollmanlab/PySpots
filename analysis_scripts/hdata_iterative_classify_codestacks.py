@@ -12,7 +12,7 @@ import importlib
 import multiprocessing
 import dill as pickle
 import traceback
-from analysis_scripts.decon_codestacks import HybeData
+from fish_results import HybeData
 
 if __name__ == '__main__':
     import argparse
@@ -59,12 +59,14 @@ def classify_codestack(cstk, norm_vector, codeword_vectors, csphere_radius=0.517
     """
     cstk = cstk.copy()
     cstk = cstk.astype('float32')
+    cstk = np.nan_to_num(cstk)
+    np.place(cstk, cstk<=0, 0.01)
     # Normalize for intensity difference between codebits
     cstk = np.divide(cstk, norm_vector)
+    np.place(cstk, cstk>=2**16, 2**16-1)
     # Prevent possible underflow/divide_zero errors
-    np.place(cstk, cstk<=0, 0.01)
     # Fill class img one column at a time
-    class_img = np.empty((cstk.shape[0], cstk.shape[1]))
+    class_img = np.empty((cstk.shape[0], cstk.shape[1]), dtype=np.int16)
     for i in range(cstk.shape[0]):
         v = cstk[i, :, :]
         # l2 norm note codeword_vectors should be prenormalized
@@ -77,7 +79,7 @@ def classify_codestack(cstk, norm_vector, codeword_vectors, csphere_radius=0.517
         class_img[i, :] = dv
     return class_img#.astype('int16')
 
-def mean_one_bits(cstk, class_img, cvectors):#, nbits = 18):
+def mean_one_bits(cstk, class_img, cvectors, spot_thresh=10**2.55):#, nbits = 18):
     """
     Calculate average intensity of classified pixels per codebits.
     
@@ -119,32 +121,31 @@ def mean_one_bits(cstk, class_img, cvectors):#, nbits = 18):
 def robust_mean(x):
     return np.average(x, weights=np.ones_like(x) / len(x))
                     
-def classify_file(hdata, nfactor, nvectors):
+def classify_file(hdata, pos, nfactor, nvectors):
     """
     Wrapper for classify_codestack. Can change this instead of function if 
     intermediate file storage ever changes.
     """
     cvectors = nvectors.copy()
     np.place(cvectors, cvectors>0., 1.)
-    hdata = HybeData(f)
-    try:
-        pth, pos = os.path.split(f)
-        print(pos)
-        zindexes = hdata.metadata.zindex.unique()
-        #cstks, nfs, class_imgs = load_codestack_from_npz(f)
-        nfs = {}
-        for z in zindexes:
-            cstk = hdata.load_data(pos, z, 'cstk')
-            new_class_img = classify_codestack(cstk, nfactor, nvectors)
-            hdata.add_and_save_data(new_class_img, pos, z, 'cimg')
-            #class_imgs[z] = new_class_img
-            new_nf = mean_one_bits(cstk, new_class_img, cvectors)
-            hdata.add_and_save_data(new_nf, pos, z, 'nf')
+    #hdata = HybeData(f)
+        #pth, pos = os.path.split(f)
+    print(pos)
+    zindexes = hdata.metadata.zindex.unique()
+    #cstks, nfs, class_imgs = load_codestack_from_npz(f)
+    nfs = {}
+    for z in zindexes:
+        cstk = hdata.load_data(pos, z, 'cstk')
+        new_class_img = classify_codestack(cstk, nfactor, nvectors)
+        hdata.add_and_save_data(new_class_img, pos, z, 'cimg')
+        #class_imgs[z] = new_class_img
+        new_nf = mean_one_bits(cstk, new_class_img, cvectors)
+        hdata.add_and_save_data(new_nf, pos, z, 'nf')
         #np.savez(os.path.join(pth, pos), cstks=cstks, norm_factors=nfs, class_imgs=class_imgs)
-    except Exception as e:
-        print(e)
-        print(traceback.format_exc())
-        return f
+#     except Exception as e:
+#         print(e)
+#         print(traceback.format_exc())
+#         return pos
 #     pickle.dump({'cstk': cstk, 'nf': nfactor,
 #                  'class_img': new_class_img}, open(f, 'wb'))
     #return np.mean([n for k, n in nfs.items()], axis=0)
