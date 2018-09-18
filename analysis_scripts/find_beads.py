@@ -24,6 +24,9 @@ if __name__ == '__main__':
     print(args)
 
 def keep_which(stk, peaks, w=3, sz = 7):
+    """
+    Only necessary if grabbing substks to prevent accessing out of bounds pixels.
+    """
     imsz = stk.shape
     keep_list = []
     for ii, p in enumerate(peaks):
@@ -63,22 +66,22 @@ def find_beads_3D(fnames_list, bead_template, match_threshold=0.75):
     ref_stk = numpy.stack([io.imread(i) for i in fnames_list], axis=2).astype('float')
     ref_match = match_template(ref_stk, bead_template)
     ref_beads = peak_local_max(ref_match, threshold_abs=match_threshold)
-    keep_list = keep_which(ref_stk, ref_beads, w=3)
-    ref_beads = ref_beads[keep_list, :]
+    #keep_list = keep_which(ref_stk, ref_beads, w=3)
+    #ref_beads = ref_beads[keep_list, :]
     return ref_beads
 
-def add_bead_data(bead_dicts,ave_bead, Input):
+def add_bead_data(bead_dicts, ave_bead, Input):
     fnames_dict = Input['fname_dicts']
     pos = Input['posnames']
     print('starting', pos)
-    if pos in bead_dicts.keys():
+    if pos in bead_dicts:
         bead_dict = bead_dicts[pos]
     else:
         bead_dict = {}
     for h in fnames_dict.keys():
         #convert to hybe1 not hybe1_4
         H = h.split('_')[0]
-        if H in bead_dict.keys():
+        if H in bead_dict:
             continue
         else:
             beads = find_beads_3D(fnames_dict[h], ave_bead)
@@ -103,9 +106,9 @@ if __name__ == '__main__':
             print('add path to metadata after analysis path')
     else:
         deconvolved_path = md_path
-    bead_path = os.path.join(analysis_path,'beads')
-    if not os.path.exists(bead_path):
-        os.makedirs(bead_path)
+#     bead_path = os.path.join(analysis_path,'beads')
+#     if not os.path.exists(bead_path):
+#         os.makedirs(bead_path)
     results_path = os.path.join(analysis_path,'results')
     if not os.path.exists(results_path):
         os.makedirs(results_path)
@@ -117,22 +120,23 @@ if __name__ == '__main__':
     print('posnames loaded')
     hybe_list = sorted([i.split('_')[0] for i in md.acqnames if 'hybe' in i])
     if zindexes == -1:
-        fnames_dicts = [md.stkread(Channel='DeepBlue', Position=pos,
+        Input = [ {'fname_dicts': md.stkread(Channel='DeepBlue', Position=pos,
                            fnames_only=True, groupby='acq', 
-                          hybe=hybe_list) for pos in posnames]
+                          hybe=hybe_list), 'posnames': pos} for pos in posnames]
     else:
         fnames_dicts = [md.stkread(Channel='DeepBlue', Position=pos,
                            fnames_only=True, groupby='acq', 
                           hybe=hybe_list, Zindex=zindexes) for pos in posnames]
     print('fnames loaded')
-    Input = list()
-    for i in range(len(fnames_dicts)):
-        dictionary = defaultdict(dict)
-        dictionary['fname_dicts'] = fnames_dicts[i]
-        dictionary['posnames']= posnames[i]
-        Input.append(dictionary)
+#     Input = list()
+#     for i in range(len(fnames_dicts)):
+#         dictionary = defaultdict(dict)
+#         dictionary['fname_dicts'] = fnames_dicts[i]
+#         dictionary['posnames']= posnames[i]
+#         Input.append(dictionary)
         
     Ave_Bead = pickle.load(open(ave_bead_path, 'rb'))
+    Ave_Bead = Ave_Bead[:,:, 3:] # Only use the top half so that i can match things near coverslip better
 
     #Setting up parrallel pool
     os.environ['MKL_NUM_THREADS'] = '3'

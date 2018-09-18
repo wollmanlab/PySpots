@@ -28,94 +28,6 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
     
-import dill as pickle
-import os
-import pandas
-import numpy as np
-from skimage.io import imread, imsave
-from skimage.external import tifffile
-
-
-class HybeData(pickle.Pickler):
-    def __init__(self, base_path, file_name='hybedata.csv'):
-        fpath = os.path.join(base_path, file_name)
-        self.base_path = base_path
-        self.file_name = file_name
-        if os.path.exists(fpath):
-            self.load_metadata(fpath)
-        else:
-            self.metadata = pandas.DataFrame(columns=['posname', 'zindex', 'dtype', 'filename'])
-    def load_metadata(self, pth):
-        all_mds = []
-        for subdir, curdir, filez in walk(pth):
-            if md_name in filez:
-                try:
-                    all_mds.append(pandas.read_csv(os.path.join(pth, subdir)))
-                except:
-                    continue
-        hdata = pandas.concat(all_mds, ignore_index=True)
-        self.metadata = hdata
-    def generate_fname(self, posname, zindex, dtype, sep="_z_"):
-        if dtype == 'cstk':
-            fname = "cstk_{0}{1}{2}.tif".format(posname, sep, zindex)
-        elif dtype == 'nf':
-            fname = "nf_{0}{1}{2}.csv".format(posname, sep, zindex)
-        elif dtype == 'cimg':
-            fname = "cimg_{0}{1}{2}.tif".format(posname, sep, zindex)
-        relative_fname = os.path.join(fname)
-        return relative_fname
-    def add_and_save_data(self, data, posname, zindex, dtype, rewrite_metadata=True):
-        relative_fname = self.generate_fname(posname, zindex, dtype)
-        
-        if relative_fname in self.metadata.filename:
-            raise ValueError('Item exists in metadata already.')
-        self.metadata = self.metadata.append({'posname': posname, 'zindex': zindex,
-                                              'dtype': dtype, 'filename': relative_fname},
-                                             ignore_index=True)
-        full_fname = os.path.join(self.base_path, relative_fname)
-        pth_part, filename_part = os.path.split(full_fname)
-        if not os.path.exists(pth_part):
-            os.makedirs(pth_part)
-        save_passed = self.save_data(data, full_fname, dtype)
-        if rewrite_metadata:
-            self.metadata.to_csv(os.path.join(self.base_path, self.file_name))
-    
-    def save_data(self, data, fname, dtype):
-        if fname is None:
-            raise ValueError("No items for in metadata matching request.")
-        if dtype == 'cstk':
-            tifffile.imsave(fname, data, metadata={'axes': 'YXZ'})
-        elif dtype == 'nf':
-            dout = np.savetxt(fname, data)
-        elif dtype == 'cimg':
-            tifffile.imsave(fname, data, metadata={'axes': 'YX'})
-        return True
-
-    def get_data(self, posname, zindex, dtype, fname_only=False):
-        if fname_only:
-            return 'Not Implemented'
-        else:
-            return self.load_data(posname, zindex, dtype)
-    def lookup_data_filename(self, posname, zindex, dtype):
-        subset = self.metadata[(self.metadata.posname==posname) & (self.metadata.zindex==zindex) & (self.metadata.dtype==dtype)]
-        if subset.shape[0]==1:
-            return subset.filename.values[0]
-        elif subset.shape[0]==0:
-            return None
-    def load_data(self, posname, zindex, dtype):
-        relative_fname = self.lookup_data_filename(posname, zindex, dtype)
-        
-        if relative_fname is None:
-            raise ValueError("No items for in metadata matching request.")
-        full_fname = os.path.join(self.base_path, relative_fname) 
-        if dtype == 'cstk':
-            dout = tifffile.imread(full_fname)
-        elif dtype == 'nf':
-            dout = np.genfromtxt(full_fname, delimiter=',')
-        elif dtype == 'cimg':
-            dout = tifffile.imread(full_fname)
-        return dout
-
 def hdata_multi_z_pseudo_maxprjZ_wrapper(pos_hdata, posname, tforms_xy, tforms_z, md_path, bitmap, cstk_save_dir, reg_ref='hybe1', zstart=5, k=2, zskip=4, zmax=26, ndecon_iter = 20):
     codestacks = {}
     norm_factors = {}
@@ -195,7 +107,7 @@ def tform_image(cstk, channel, tvect, niter=25):
     """
     if channel == 'DeepBlue':
         xs, ys = yshift_db+tvect[1], xshift_db+tvect[0]
-        return cstk.astype('float32')
+        #return cstk.astype('float32')
     if channel == 'Orange':
         xs, ys = numpy.linspace(0, 2047, 2048)+tvect[1], numpy.linspace(0, 2047, 2048)+tvect[0]
         cstk = dogonvole(cstk, orange_psf, niter=niter)
