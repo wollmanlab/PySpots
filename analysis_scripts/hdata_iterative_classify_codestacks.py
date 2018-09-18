@@ -168,34 +168,29 @@ if __name__ == '__main__':
     # 1. bitmap
     # 2. bids, blanks, gids, cwords, gene_codeword_vectors, blank_codeword_vectors
     # 3. norm_gene_codeword_vectors, norm_blank_codeword_vectors
+    cstk_path = args.cstk_path
+    ncpu = args.ncpu
+    niter = args.niter
     
     seqfish_config = importlib.import_module(args.cword_config)
     bitmap = seqfish_config.bitmap
     normalized_gene_vectors = seqfish_config.norm_gene_codeword_vectors
     
-    hybedatas = [(i, HybeData(i)) for i in os.listdir(args.cstk_path) if os.path.isdir(os.path.join(args.cstk_path, i))]
+    hybedatas = [(i, HybeData(os.path.join(cstk_path, i))) for i in os.listdir(cstk_path) if os.path.isdir(os.path.join(cstk_path, i))]
+
     
 # Note preceding blocks and this can be noisy if restarted after crash etccc
-    with multiprocessing.Pool(args.ncpu) as ppool:
+    # Note preceding blocks and this can be noisy if restarted after crash etccc
+    with multiprocessing.Pool(ncpu) as ppool:
         failed_positions = []
-        for i in range(args.niter):
-            print('N Positions left: ', len(codestacks))
+        for i in range(niter):
+            print('N Positions left: ', len(hybedatas))
             if i == 0:
                 cur_nf = np.array(np.nanmean([mean_nfs(hdata, pos) for pos, hdata in hybedatas], axis=0))
                 print('90th Percentile Normalization factors:', cur_nf, sep='\n')
             else:
                 cur_nf = np.array(np.nanmean([mean_nfs(hdata, pos) for pos, hdata in hybedatas], axis=0))
+                cur_nf = np.array([10**2.6 if (i<10**2.6) or np.isnan(i) else i for i in cur_nf])
                 print(cur_nf)
             classify_pfunc = partial(classify_file, nfactor=cur_nf, nvectors=normalized_gene_vectors)
-            results = ppool.map(classify_pfunc, [i[1] for i in hybedatas])
-            # Returns None if execution successful else returns fname
-            for idx, r in enumerate(results):
-                if r is None:
-                    continue
-                    print('None')
-                else:
-                    failed_positions.append(r)
-                    codestacks.remove(r)
-                    print(r)
-    print('These positions failed during classification: ', failed_positions)
-    
+            results = ppool.starmap(classify_pfunc, [(i[1], i[0]) for i in hybedatas])
