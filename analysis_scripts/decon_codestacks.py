@@ -84,7 +84,7 @@ class HybeData(pickle.Pickler):
         if fname is None:
             raise ValueError("No items for in metadata matching request.")
         if dtype == 'cstk':
-            tifffile.imsave(fname, data, metadata={'axes': 'CYX'})
+            tifffile.imsave(fname, data, metadata={'axes': 'YXZ'})
         elif dtype == 'nf':
             dout = np.savetxt(fname, data)
         elif dtype == 'cimg':
