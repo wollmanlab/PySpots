@@ -6,6 +6,7 @@ import numpy
 import numpy as np
 from scipy import interpolate
 from hybescope_config.microscope_config import *
+from fish_results import *
 from metadata import Metadata
 from functools import partial
 import importlib
