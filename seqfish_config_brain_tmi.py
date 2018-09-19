@@ -21,23 +21,24 @@ bitmap = [('RS0095_cy5', 'hybe2', 'FarRed'), ('RS0109_cy5', 'hybe4', 'FarRed'),
          ]
 nbits = len(bitmap)
 
-codebook_pth = '/bigstore/GeneralStorage/Rob/merfish/MERFISH_analysis-master/mouse/mouse_brain_trauma/TBIfinalCodebook.txt'
-codewords = pandas.read_csv(codebook_pth,  # Warning - file import
-                       skiprows=3)
-codewords.columns = ['name', 'id', 'barcode']
-bcs = []
-for bc in codewords.barcode:
-    bc = str(bc)
-    if len(bc)<nbits:
-        bc = '0'*(nbits-len(bc))+bc
-    bcs.append(bc)
-codewords.barcode = bcs
+# codebook_pth = '/bigstore/GeneralStorage/Rob/merfish/MERFISH_analysis-master/mouse/mouse_brain_trauma/TBIfinalCodebook.txt'
+# codewords = pandas.read_csv(codebook_pth,  # Warning - file import
+#                        skiprows=3)
+# codewords.columns = ['name', 'id', 'barcode']
+# bcs = []
+# for bc in codewords.barcode:
+#     bc = str(bc)
+#     if len(bc)<nbits:
+#         bc = '0'*(nbits-len(bc))+bc
+#     bcs.append(bc)
+# codewords.barcode = bcs
 
-f = open('/home/rfor10/repos/seqfish_design/ca_celltype_v2/combined_oligos.fa', 'r')
-s = f.read()
-f.close()
-present = [i in s for i in codewords.id.values]
-codewords = codewords[present]
+
+# f = open('/home/rfor10/repos/seqfish_design/ca_celltype_v2/combined_oligos.fa', 'r')
+# s = f.read()
+# f.close()
+# present = [i in s for i in codewords.id.values]
+# codewords = codewords[present]
 
 def load_codebook(fname):
     barcodes = []
@@ -47,11 +48,15 @@ def load_codebook(fname):
             barcodes.append(list(bc))
     return np.array(barcodes)
 
+codewords = pickle.load(open('/home/rfor10/repos/seqfish_design/mouse_tbi_codewords.pkl', 'rb'))
+gids, codewords = zip(*codewords)
+bc = np.array(codewords)
+
 cwords = load_codebook('/home/rfor10/repos/seqfish_design/MHD4_18bit_187cwords.csv')
 # Find unique gene Codewords (isoforms of same gene can have same barcode)
 # and also find unused codewords MHD4 from use codewords for False Positive Detection
-c_dropped = codewords.drop_duplicates('name')
-bc = numpy.array([list(map(int, list(s))) for s in c_dropped.barcode.values])
+# c_dropped = codewords.drop_duplicates('name')
+# bc = numpy.array([list(map(int, list(s))) for s in c_dropped.barcode.values])
 
 blank_codewords = []
 for idx, row in enumerate(distance_matrix(cwords, bc, p=1)):
@@ -62,17 +67,16 @@ for idx, row in enumerate(distance_matrix(cwords, bc, p=1)):
 idxes = numpy.random.choice(range(len(blank_codewords)), size=len(blank_codewords), replace=False)
 blank_bc = numpy.array(blank_codewords)[idxes]
 
-cbook_dict = OrderedDict()
-for idx, row in c_dropped.sort_values('name').iterrows():
-    cbook_dict[row['name']] = numpy.array(list(row.barcode), dtype=float)
+# cbook_dict = OrderedDict()
+# for idx, row in c_dropped.sort_values('name').iterrows():
+#     cbook_dict[row['name']] = numpy.array(list(row.barcode), dtype=float)
     
 blank_dict = {}
 for i, bc in enumerate(blank_bc):
     blank_dict['blank'+str(i)] = bc
     
-gids, cwords = zip(*cbook_dict.items())
 bids, blanks = zip(*blank_dict.items())
-gene_codeword_vectors = numpy.stack(cwords, axis=0)
+gene_codeword_vectors = numpy.stack(codewords, axis=0)
 blank_codeword_vectors = numpy.stack(blanks, axis=0)
 norm_gene_codeword_vectors = normalize(gene_codeword_vectors)
 norm_blank_codeword_vectors = normalize(blank_codeword_vectors)
