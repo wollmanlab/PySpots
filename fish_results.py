@@ -60,11 +60,11 @@ class HybeData(pickle.Pickler):
         if fname is None:
             raise ValueError("No items for in metadata matching request.")
         if dtype == 'cstk':
-            tifffile.imsave(fname, data.astype(np.uint16), metadata={'axes': 'YXZ'})
+            tifffile.imsave(fname, np.swapaxes(np.swapaxes(data,0,2),1,2), metadata={'axes': 'ZYX'})
         elif dtype == 'nf':
             dout = np.savetxt(fname, data)
         elif dtype == 'cimg':
-            tifffile.imsave(fname, data, metadata={'axes': 'YX'})
+            tifffile.imsave(fname, np.swapaxes(np.swapaxes(data,0,2),1,2), metadata={'axes': 'YX'})
         return True
 
     def get_data(self, posname, zindex, dtype, fname_only=False):
@@ -86,8 +86,10 @@ class HybeData(pickle.Pickler):
         full_fname = os.path.join(self.base_path, relative_fname) 
         if dtype == 'cstk':
             dout = tifffile.imread(full_fname).astype(np.float64)
+            dout = np.swapaxes(np.swapaxes(dout,0,2),0,1)
         elif dtype == 'nf':
             dout = np.genfromtxt(full_fname, delimiter=',')
         elif dtype == 'cimg':
             dout = tifffile.imread(full_fname).astype(np.int16)
+            dout = np.swapaxes(np.swapaxes(dout,0,2),0,1)
         return dout
