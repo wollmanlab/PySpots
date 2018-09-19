@@ -121,7 +121,7 @@ def mean_one_bits(cstk, class_img, cvectors, spot_thresh=10**2.55):#, nbits = 18
 def robust_mean(x):
     return np.average(x, weights=np.ones_like(x) / len(x))
                     
-def classify_file(hdata, pos, nfactor, nvectors):
+def classify_file(hdata, pos, nfactor, nvectors, genesubset=None, thresh=500):
     """
     Wrapper for classify_codestack. Can change this instead of function if 
     intermediate file storage ever changes.
@@ -139,7 +139,10 @@ def classify_file(hdata, pos, nfactor, nvectors):
         new_class_img = classify_codestack(cstk, nfactor, nvectors)
         hdata.add_and_save_data(new_class_img, pos, z, 'cimg')
         #class_imgs[z] = new_class_img
-        new_nf = mean_one_bits(cstk, new_class_img, cvectors)
+        if genesubset is None:
+            new_nf = mean_one_bits(cstk, new_class_img, cvectors)
+        else:
+            new_nf = mean_one_bits(cstk, new_class_img, cvectors[genesubset, :])
         hdata.add_and_save_data(new_nf, pos, z, 'nf')
         #np.savez(os.path.join(pth, pos), cstks=cstks, norm_factors=nfs, class_imgs=class_imgs)
 #     except Exception as e:

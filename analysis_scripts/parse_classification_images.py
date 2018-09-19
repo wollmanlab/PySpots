@@ -1,7 +1,8 @@
 from skimage.measure import regionprops, label
 import pandas as pd
 import numpy as np
-from collections import defaultdict
+from collections import defaultdict, Counter
+from scipy.spatial import distance_matrix
 def parse_classification_image(class_img, cstk, cvectors, genes, zindex):
     #class_imgs = data['class_img']
     #cstk = data['cstk']
@@ -32,7 +33,7 @@ def parse_classification_image(class_img, cstk, cvectors, genes, zindex):
             nclasses.append(len(classes))
             areas.append(prop.area)
         codeword_idx = classes[0]-1
-        bits = np.where(cvectors[codeword_idx]==1)[0]
+        bits = np.where(cvectors[codeword_idx]>0)[0]
         
         spot_pixel_values = []
         for x, y in coords:
@@ -45,18 +46,19 @@ def parse_classification_image(class_img, cstk, cvectors, genes, zindex):
             #pdb.set_trace()
         df_rows.append([genes[codeword_idx], centroid, spot_pixel_values,
                         np.mean(spot_pixel_values), len(coords), codeword_idx, coords])
-    print(multiclass_sets)
     df = pd.DataFrame(df_rows, columns=['gene', 'centroid', 'pixel_values', 'mean', 'npixels', 'cword_idx', 'coords'])
     return df, bit_values
-def multi_z_class_parse_wrapper(f, cvectors, genes):
-    data = np.load(f)
-    cstks, nfs, class_imgs = data['cstks'].tolist(), data['norm_factors'].tolist(), data['class_imgs'].tolist()
+def multi_z_class_parse_wrapper(hdata, pos, cvectors, genes):
+#     data = np.load(f)
+#     cstks, nfs, class_imgs = data['cstks'].tolist(), data['norm_factors'].tolist(), data['class_imgs'].tolist()
     cvectors = cvectors.copy()
     np.place(cvectors, cvectors>0, 1.)
-    data.close()
+#     data.close()
     merged_df =[]
-    for z, cstk in cstks.items():
-        df, bvs = parse_classification_image(class_imgs[z], cstk, cvectors, genes, z)
+    for z in hdata.metadata.zindex.unique():
+        cstk = hdata.load_data(pos, z, 'cstk')
+        class_img = hdata.load_data(pos, z, 'cimg')
+        df, bvs = parse_classification_image(class_img, cstk, cvectors, genes, z)
         df['z'] = z
         merged_df.append(df)
     return pd.concat(merged_df, ignore_index=True)
@@ -67,7 +69,7 @@ def find_bitwise_error_rate(df, cvectors, norm_factor):
     error_counts = Counter()
     bit_freq = Counter()
     for idx, row in df.iterrows():
-        if idx % 1000 == 0:
+        if idx % 10000 == 0:
             print(idx)
         cword = cvectors[row.cword_idx]
         cidx = np.where(cword==1.)[0]

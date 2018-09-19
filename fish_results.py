@@ -12,9 +12,9 @@ class HybeData(pickle.Pickler):
         self.base_path = base_path
         self.file_name = file_name
         if os.path.exists(base_path):
-            self.load_metadata(base_path)
+            mdata_loaded = self.load_metadata(base_path)
         else:
-            self.metadata = pandas.DataFrame(columns=['posname', 'zindex', 'dtype', 'filename'])
+            raise ValueError('Invalid initialization path provided. Does not exist.')
     def load_metadata(self, pth):
         all_mds = []
         for subdir, curdir, filez in os.walk(pth):
@@ -24,8 +24,13 @@ class HybeData(pickle.Pickler):
                 except Exception as e:
                     print(e)
                     continue
-        hdata = pandas.concat(all_mds, ignore_index=True)
-        self.metadata = hdata
+        if len(all_mds)==0:
+            self.metadata = pandas.DataFrame(columns=['posname', 'zindex', 'dtype', 'filename'])
+            return False
+        else:
+            hdata = pandas.concat(all_mds, ignore_index=True)
+            self.metadata = hdata
+            return True
     def generate_fname(self, posname, zindex, dtype, sep="_z_"):
         if dtype == 'cstk':
             fname = "cstk_{0}{1}{2}.tif".format(posname, sep, zindex)
