@@ -34,19 +34,21 @@ def parse_classification_image(class_img, cstk, cvectors, genes, zindex):
             areas.append(prop.area)
         codeword_idx = classes[0]-1
         bits = np.where(cvectors[codeword_idx]>0)[0]
-        
-        spot_pixel_values = []
+#         spot_bit_values = {}
+        spot_pixel_values = defaultdict(list)
+        spot_pixel_means = []
         for x, y in coords:
             cur_vals = cstk[x, y, bits]
-            spot_pixel_values+=list(cur_vals)
+            spot_pixel_means.append(cur_vals)
             for idx, b in enumerate(bits):
+                spot_pixel_values[b]+=list(cur_vals)
                 bit_values[b].append(cur_vals[idx])
             #norm_spot_pixel_values = spot_pixel_values
             #norm_spot_pixel_values = nstk[x, y, bits][0]
             #pdb.set_trace()
         df_rows.append([genes[codeword_idx], centroid, spot_pixel_values,
-                        np.mean(spot_pixel_values), len(coords), codeword_idx, coords])
-    df = pd.DataFrame(df_rows, columns=['gene', 'centroid', 'pixel_values', 'mean', 'npixels', 'cword_idx', 'coords'])
+                        np.mean(spot_pixel_means), len(coords), codeword_idx, coords])
+    df = pd.DataFrame(df_rows, columns=['gene', 'centroid', 'pixel_values', 'ave', 'npixels', 'cword_idx', 'coords'])
     return df, bit_values
 def multi_z_class_parse_wrapper(hdata, pos, cvectors, genes):
 #     data = np.load(f)
