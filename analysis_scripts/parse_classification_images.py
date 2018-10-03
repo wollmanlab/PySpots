@@ -3,6 +3,9 @@ import pandas as pd
 import numpy as np
 from collections import defaultdict, Counter
 from scipy.spatial import distance_matrix
+import pickle
+import os
+
 def parse_classification_image(class_img, cstk, cvectors, genes, zindex):
     #class_imgs = data['class_img']
     #cstk = data['cstk']
@@ -62,8 +65,12 @@ def multi_z_class_parse_wrapper(hdata, pos, cvectors, genes):
         class_img = hdata.load_data(pos, z, 'cimg')
         df, bvs = parse_classification_image(class_img, cstk, cvectors, genes, z)
         df['z'] = z
+        
         merged_df.append(df)
-    return pd.concat(merged_df, ignore_index=True)
+    merged_df = pd.concat(merged_df, ignore_index=True)
+    merged_df['posname'] = pos
+    pickle.dump(merged_df, open(os.path.join(hdata.base_path, 'spotcalls.pkl'), 'wb'))
+    #return pd.concat(merged_df, ignore_index=True)
 
 def find_bitwise_error_rate(df, cvectors, norm_factor):
     cvectors = cvectors.copy()

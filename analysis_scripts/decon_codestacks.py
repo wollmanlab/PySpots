@@ -25,7 +25,7 @@ if __name__ == '__main__':
     parser.add_argument("-s", "--zstart", type=int, dest="zstart", default=4, action='store', help="Start making max projections centered at zstart.")
     parser.add_argument("-m", "--zmax", type=int, dest="zmax", default=15, action='store', help="End making max projections centered at zmax.")
     parser.add_argument("-i", "--zskip", type=int, dest="zskip", default=4, action='store', help="Skip this many z-slices between centers of max projections.")
-    parser.add_argument("--decon_iters", type=int, dest="niter", default=20, action='store', help="Skip this many z-slices between centers of max projections.")
+    parser.add_argument("--decon_iters", type=int, dest="niter", default=25, action='store', help="Skip this many z-slices between centers of max projections.")
 
     args = parser.parse_args()
     
@@ -34,10 +34,15 @@ def hdata_multi_z_pseudo_maxprjZ_wrapper(pos_hdata, posname, tforms_xy, tforms_z
     norm_factors = {}
     class_imgs = {}
     for z_i in list(range(zstart, zmax, zskip)):
-        cstk, nf = pseudo_maxproject_positions_and_tform(posname, md_path, tforms_xy, tforms_z, bitmap, zstart=z_i, k=k)
-        pos_hdata.add_and_save_data(cstk, posname, z_i, 'cstk')
-        pos_hdata.add_and_save_data(nf, posname, z_i, 'nf')
-        pos_hdata.add_and_save_data(np.zeros((cstk.shape[0], cstk.shape[1])), posname, z_i, 'cimg')
+        try:
+            cstk, nf = pseudo_maxproject_positions_and_tform(posname, md_path, tforms_xy, tforms_z, bitmap, zstart=z_i, k=k)
+            pos_hdata.add_and_save_data(cstk, posname, z_i, 'cstk')
+            pos_hdata.add_and_save_data(nf, posname, z_i, 'nf')
+            pos_hdata.add_and_save_data(np.zeros((cstk.shape[0], cstk.shape[1])), posname, z_i, 'cimg')
+        except Exception as e:
+            print(e)
+            return 'Failed'
+    return 'Passed'
         #codestacks[z_i] = cstk.astype('uint16')
         #norm_factors[z_i] = nf
         #class_imgs[z_i] = np.empty((cstk.shape[0], cstk.shape[1]))
@@ -187,6 +192,8 @@ if __name__=='__main__':
     zskip = args.zskip
     zmax = args.zmax
     out_path = args.out_path
+    if not os.path.exists(out_path):
+        os.makedirs(out_path)
     
     os.environ['MKL_NUM_THREADS'] = '4'
     os.environ['GOTO_NUM_THREADS'] = '4'

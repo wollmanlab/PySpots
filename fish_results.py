@@ -14,7 +14,8 @@ class HybeData(pickle.Pickler):
         if os.path.exists(base_path):
             mdata_loaded = self.load_metadata(base_path)
         else:
-            raise ValueError('Invalid initialization path provided. Does not exist.')
+            self.metadata = pandas.DataFrame(columns=['posname', 'zindex', 'dtype', 'filename'])
+            #raise ValueError('Invalid initialization path provided. Does not exist.')
     def load_metadata(self, pth):
         all_mds = []
         for subdir, curdir, filez in os.walk(pth):
@@ -60,11 +61,12 @@ class HybeData(pickle.Pickler):
         if fname is None:
             raise ValueError("No items for in metadata matching request.")
         if dtype == 'cstk':
+            data = data.astype('uint16')
             tifffile.imsave(fname, np.swapaxes(np.swapaxes(data,0,2),1,2), metadata={'axes': 'ZYX'})
         elif dtype == 'nf':
             dout = np.savetxt(fname, data)
         elif dtype == 'cimg':
-            tifffile.imsave(fname, np.swapaxes(np.swapaxes(data,0,2),1,2), metadata={'axes': 'YX'})
+            tifffile.imsave(fname, data.astype('int16')) # Allow imagej to read
         return True
 
     def get_data(self, posname, zindex, dtype, fname_only=False):
@@ -90,6 +92,6 @@ class HybeData(pickle.Pickler):
         elif dtype == 'nf':
             dout = np.genfromtxt(full_fname, delimiter=',')
         elif dtype == 'cimg':
-            dout = tifffile.imread(full_fname).astype(np.int16)
-            dout = np.swapaxes(np.swapaxes(dout,0,2),0,1)
+            dout = tifffile.imread(full_fname).astype('int16')
+            #dout = np.swapaxes(np.swapaxes(dout,0,2),0,1)
         return dout
