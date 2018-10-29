@@ -69,11 +69,13 @@ for idx, row in c_dropped.sort_values('name').iterrows():
 blank_dict = {}
 for i, bc in enumerate(blank_bc):
     blank_dict['blank'+str(i)] = bc
-    
+
 gids, cwords = zip(*cbook_dict.items())
 bids, blanks = zip(*blank_dict.items())
-cvectors = numpy.concatenate((cwords, blanks), axis=0)
-nvectors = normalize(cvectors)
+gene_codeword_vectors = numpy.stack(cwords, axis=0)
+blank_codeword_vectors = numpy.stack(blanks, axis=0)
+norm_gene_codeword_vectors = normalize(gene_codeword_vectors)
+norm_blank_codeword_vectors = normalize(blank_codeword_vectors)
 
 ################################ Microscope Related Config ##########################
 ave_bead = pickle.load(open(os.path.join(base_pth, 'ave_bead.333um.pkl'), 'rb'))
