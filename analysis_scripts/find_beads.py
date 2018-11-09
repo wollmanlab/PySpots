@@ -10,6 +10,8 @@ from metadata import Metadata
 from scipy.spatial import KDTree
 from collections import defaultdict
 from skimage.feature import match_template, peak_local_max
+from skimage.filters import gaussian
+from skimage.transform import resize
 
 if __name__ == '__main__':
     import argparse
@@ -39,7 +41,7 @@ def keep_which(stk, peaks, w=3, sz = 7):
         keep_list.append(ii)
     return keep_list
 
-def find_beads_3D(fnames_list, bead_template, match_threshold=0.75):
+def find_beads_3D(fnames_list, bead_template, match_threshold=0.65, upsamp_factor = 5):
     """
     3D registration from sparse bead images.
     Parameters
@@ -64,11 +66,41 @@ def find_beads_3D(fnames_list, bead_template, match_threshold=0.75):
     """
     #hybe_names = ['hybe1', 'hybe2', 'hybe3', 'hybe4', 'hybe5', 'hybe6']
     ref_stk = numpy.stack([io.imread(i) for i in fnames_list], axis=2).astype('float')
-    ref_match = match_template(ref_stk, bead_template)
+    ref_match = match_template(ref_stk, bead_template, pad_input=True)
     ref_beads = peak_local_max(ref_match, threshold_abs=match_threshold)
-    #keep_list = keep_which(ref_stk, ref_beads, w=3)
-    #ref_beads = ref_beads[keep_list, :]
-    return ref_beads
+    upsamp_bead = resize(bead_template[2:5, 2:5, 1:4],
+                         (3*upsamp_factor, 3*upsamp_factor, 3*upsamp_factor))
+    subpixel_beads = []
+    for y, x, z in ref_beads:
+        substk = ref_stk[y-5:y+6, x-5:x+6, z-2:z+3]
+        if substk.shape[0] != 11 or substk.shape[1] != 11:
+            continue # candidate too close to edge
+        try:
+            upsamp_substk = resize(substk,
+                                   (substk.shape[0]*upsamp_factor,
+                                    substk.shape[1]*upsamp_factor,
+                                    substk.shape[2]*upsamp_factor))
+        except:
+            continue
+        bead_match = match_template(upsamp_substk,
+                                    upsamp_bead, pad_input=True)
+        yu, xu, zu = numpy.where(bead_match==bead_match.max())
+        yu = (yu[0]-int(upsamp_substk.shape[0]/2))/upsamp_factor
+        xu = (xu[0]-int(upsamp_substk.shape[1]/2))/upsamp_factor
+        zu = (zu[0]-int(upsamp_substk.shape[2]/2))/upsamp_factor
+        ys, xs, zs = (yu+y, xu+x, zu+z)
+        subpixel_beads.append((ys, xs, zs))
+#         if len(subpixel_beads)<1:
+#             subpixel_beads = numpy.array([])
+#         else:
+#             subpixel_beads = numpy.stack(subpixel_beads, axis=0)
+    return subpixel_beads
+#     if len(subpixel_beads)==0:
+#         subpixel_beads = numpy.array([])
+#     else:
+#         subpixel_beads = numpy.stack(subpixel_beads, axis=0)
+#     return subpixel_beads
+#     return ref_beads
 
 def add_bead_data(bead_dicts, ave_bead, Input):
     fnames_dict = Input['fname_dicts']
@@ -137,7 +169,10 @@ if __name__ == '__main__':
         
     Ave_Bead = pickle.load(open(ave_bead_path, 'rb'))
     Ave_Bead = Ave_Bead[:,:, 3:] # Only use the top half so that i can match things near coverslip better
-
+    bead = numpy.zeros((7, 7, 5))
+    bead[3, 3, 2] = 1
+    bead = gaussian(bead, (1.5, 1.5, 0.85))
+    Ave_Bead = bead/bead.max()
     #Setting up parrallel pool
     os.environ['MKL_NUM_THREADS'] = '3'
     os.environ['GOTO_NUM_THREADS'] = '3'
