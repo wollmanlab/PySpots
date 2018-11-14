@@ -11,6 +11,11 @@ class HybeData(pickle.Pickler):
         #fpath = os.path.join(base_path, file_name)
         self.base_path = base_path
         self.file_name = file_name
+        if self.base_path[-1]=='/':
+            self.posname = os.path.split(self.base_path[:-1])[-1]
+        else:
+            self.posname = os.path.split(self.base_path)[-1]
+        self.completed_hybes = {}
         if os.path.exists(base_path):
             mdata_loaded = self.load_metadata(base_path)
         else:
@@ -56,6 +61,11 @@ class HybeData(pickle.Pickler):
         save_passed = self.save_data(data, full_fname, dtype)
         if rewrite_metadata:
             self.metadata.to_csv(os.path.join(self.base_path, self.file_name))
+    def remove_metadata_by_zindex(self, zidx):
+        self.metadata = self.metadata[self.metadata['zindex'] != zidx]
+        if not os.path.exists(self.base_path):
+            os.makedirs(self.base_path)
+        self.metadata.to_csv(os.path.join(self.base_path, self.file_name))
     
     def save_data(self, data, fname, dtype):
         if fname is None:
@@ -84,7 +94,8 @@ class HybeData(pickle.Pickler):
         relative_fname = self.lookup_data_filename(posname, zindex, dtype)
         
         if relative_fname is None:
-            raise ValueError("No items for in metadata matching request.")
+#             raise ValueError("No items for in metadata matching request.")
+            return None
         full_fname = os.path.join(self.base_path, relative_fname) 
         if dtype == 'cstk':
             dout = tifffile.imread(full_fname).astype(np.float64)

@@ -6,16 +6,18 @@ from scipy.spatial import distance_matrix
 import pickle
 import os
 
-def parse_classification_image(class_img, cstk, cvectors, genes, zindex):
+def parse_classification_image(class_img, cstk, cvectors, genes, zindex, pix_thresh=0, ave_thresh=500):
     #class_imgs = data['class_img']
     #cstk = data['cstk']
     label2d = label((class_img+1).astype('uint16'), neighbors=8)
     properties = regionprops(label2d, (class_img+1).astype('uint16'))
     areas = []
     nclasses = []
-    df_rows = []
+#     df_rows = []
     multiclass_sets = 0
     bit_values = defaultdict(list)
+    gene_call_rows = []
+    below_threshold_rows = []
     for prop in properties:
         coords = prop.coords
         centroid = prop.centroid
@@ -32,30 +34,32 @@ def parse_classification_image(class_img, cstk, cvectors, genes, zindex):
             multiclass_sets+=1
             continue
         else:
-            #different_z.append(len(set(coords[:,2])))
             nclasses.append(len(classes))
             areas.append(prop.area)
         codeword_idx = classes[0]-1
         bits = np.where(cvectors[codeword_idx]>0)[0]
-#         spot_bit_values = {}
         spot_pixel_values = defaultdict(list)
         spot_pixel_means = []
+        spot_sums = 0
         for x, y in coords:
             cur_vals = cstk[x, y, bits]
             spot_pixel_means.append(cur_vals)
             for idx, b in enumerate(bits):
-                spot_pixel_values[b]+=list(cur_vals)
+                spot_pixel_values[b].append(cur_vals[idx])
                 bit_values[b].append(cur_vals[idx])
-            #norm_spot_pixel_values = spot_pixel_values
-            #norm_spot_pixel_values = nstk[x, y, bits][0]
-            #pdb.set_trace()
-        df_rows.append([genes[codeword_idx], centroid, spot_pixel_values,
+                spot_sums += cur_vals[idx]
+        if (len(coords)>pix_thresh) and (np.mean(spot_pixel_means)>ave_thresh):
+            gene_call_rows.append([genes[codeword_idx], spot_sums, centroid, spot_pixel_values,
+                            np.mean(spot_pixel_means), len(coords), codeword_idx, coords])
+        else:
+            below_threshold_rows.append([genes[codeword_idx], spot_sums, centroid, spot_pixel_values,
                         np.mean(spot_pixel_means), len(coords), codeword_idx, coords])
-    df = pd.DataFrame(df_rows, columns=['gene', 'centroid', 'pixel_values', 'ave', 'npixels', 'cword_idx', 'coords'])
+    df = pd.DataFrame(gene_call_rows, columns=['gene', 'ssum', 'centroid', 'pixel_values', 'ave', 'npixels', 'cword_idx', 'coords'])
     return df, bit_values
-def multi_z_class_parse_wrapper(hdata, pos, cvectors, genes):
+def multi_z_class_parse_wrapper(hdata, cvectors, genes, return_df = False):
 #     data = np.load(f)
 #     cstks, nfs, class_imgs = data['cstks'].tolist(), data['norm_factors'].tolist(), data['class_imgs'].tolist()
+    pos = hdata.posname
     cvectors = cvectors.copy()
     np.place(cvectors, cvectors>0, 1.)
 #     data.close()
@@ -70,6 +74,8 @@ def multi_z_class_parse_wrapper(hdata, pos, cvectors, genes):
     merged_df = pd.concat(merged_df, ignore_index=True)
     merged_df['posname'] = pos
     pickle.dump(merged_df, open(os.path.join(hdata.base_path, 'spotcalls.pkl'), 'wb'))
+    if return_df:
+        return merged_df
     #return pd.concat(merged_df, ignore_index=True)
 
 def find_bitwise_error_rate(df, cvectors, norm_factor):

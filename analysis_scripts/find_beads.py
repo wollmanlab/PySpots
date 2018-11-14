@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 import os
 import numpy
 import pickle
@@ -147,10 +148,10 @@ if __name__ == '__main__':
     
     #Retreiving file names and position names
     md = Metadata(deconvolved_path)
-    md.image_table = md.image_table[[True if 'hybe' in i else False for i in md.image_table.acq]]
+    md.image_table = md.image_table[[True if (('hybe' in i) or ('nucstain' in i)) else False for i in md.image_table.acq]]
     posnames = md.posnames
     print('posnames loaded')
-    hybe_list = sorted([i.split('_')[0] for i in md.acqnames if 'hybe' in i])
+    hybe_list = sorted([i.split('_')[0] for i in md.acqnames if ('hybe' in i) or ('nucstain' in i)])
     if zindexes == -1:
         Input = [ {'fname_dicts': md.stkread(Channel='DeepBlue', Position=pos,
                            fnames_only=True, groupby='acq', 

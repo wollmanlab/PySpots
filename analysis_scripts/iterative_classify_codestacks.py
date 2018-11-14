@@ -1,5 +1,7 @@
+#!/usr/bin/env python
 from skimage import io
 import os
+import sys
 from collections import defaultdict
 import numpy
 import numpy as np
@@ -10,8 +12,9 @@ from scipy.spatial import distance_matrix
 from functools import partial
 import importlib
 import multiprocessing
-import pickle
+import dill as pickle
 import traceback
+from fish_results import HybeData
 
 if __name__ == '__main__':
     import argparse
@@ -28,41 +31,45 @@ if __name__ == '__main__':
 #     parser.add_argument("-i", "--zskip", type=int, dest="zskip", default=4, action='store', help="Skip this many z-slices between centers of max projections.")
     args = parser.parse_args()
     
-def mean_nfs_npz(fname):
+def mean_nfs(hdata):
     """
     Iterate through codestacks and average norm factors.
     """
-    data = np.load(fname)
-    nfs = data['norm_factors'].tolist()
-    data.close()
-    return np.nanmean([n for k, n in nfs.items()], axis=0)
+    pos = hdata.posname
+    zindxes = hdata.metadata.zindex.unique()
+    nfs = []
+    for z in zindxes:
+        try:
+            nf = hdata.load_data(pos, z, 'nf')
+            nfs.append(nf)
+        except:
+            print(pos)
+            continue
+    return np.nanmean(nfs, axis=0)
 
-def load_codestack_from_npz(fname):
-    """
-    Load saved codestack data.
-    
-    Parameters
-    ----------
-    fname : str, filestream
-    
-    Returns
-    -------
-    cstk : dict
-        Dictionary of (y,x,nbits) arrays at different Z's
-    nfs : array
-        
-    class_imgs : dict
-        Dictionary of (y,x) arrays at different Z's of gene classifications
-    """
-    data = np.load(fname)
-    cstk = data['cstks'][()]
-    class_imgs = data['class_imgs'][()]
-    nfs = data['norm_factors'][()]
-    data.close()
-    return cstk, nfs, class_imgs
+def cstk_mean_std(hdata):
+    zindxes = hdata.metadata.zindex.unique()
+    pos = hdata.posname
+    if isinstance(pos, np.ndarray):
+        if len(pos)==1:
+            pos = pos[0]
+        else:
+            raise ValueError("More than one position found in this metadata.")
+    elif not isinstance(pos, str):
+        raise ValueError("unable load position name from HybeData metadata.")
+    stds = []
+    means = []
+    for z in zindxes:
+        cstk = hdata.load_data(pos, z, 'cstk')
+        std = np.std(cstk, axis=(0,1))
+        mean = np.mean(cstk, axis=(0,1))
+        stds.append(std)
+        means.append(mean)
 
+#     means, stds = np.stack(means, axis=0), np.stack(stds, axis=0)
+#     return np.nanmean(means, axis=0), np.nanmean(stds, axis=0)
 
-def classify_codestack(cstk, norm_vector, codeword_vectors, csphere_radius=0.5176):
+def classify_codestack(cstk, norm_vector, codeword_vectors, csphere_radius=0.5176, intensity=400):
     """
     Pixel based classification of codestack into gene_id pixels.
     
@@ -84,14 +91,15 @@ def classify_codestack(cstk, norm_vector, codeword_vectors, csphere_radius=0.517
     """
     cstk = cstk.copy()
     cstk = cstk.astype('float32')
-    # Normalize for intensity difference between codebits
-    cstk = np.divide(cstk, norm_vector)
-    # Prevent possible underflow/divide_zero errors
+    cstk = np.nan_to_num(cstk)
     np.place(cstk, cstk<=0, 0.01)
+    # Normalize for intensity difference between codebits
+    normstk = np.divide(cstk, norm_vector)
+    # Prevent possible underflow/divide_zero errors
     # Fill class img one column at a time
-    class_img = np.empty((cstk.shape[0], cstk.shape[1]))
+    class_img = np.empty((cstk.shape[0], cstk.shape[1]), dtype=np.int16)
     for i in range(cstk.shape[0]):
-        v = cstk[i, :, :]
+        v = normstk[i, :, :]
         # l2 norm note codeword_vectors should be prenormalized
         v = normalize(v, norm='l2')
         # Distance from unit vector of codewords and candidate pixel codebits
@@ -99,10 +107,13 @@ def classify_codestack(cstk, norm_vector, codeword_vectors, csphere_radius=0.517
         # Check if distance to closest unit codevector is less than csphere thresh
         dmin = np.argmin(d, axis=0)
         dv = [i if d[i, idx]<csphere_radius else -1 for idx, i in enumerate(dmin)]
+        if not intensity is None:
+            # Enforce minimum intensity for pixel to be classified
+            pass
         class_img[i, :] = dv
     return class_img#.astype('int16')
 
-def mean_one_bits(cstk, class_img, cvectors):#, nbits = 18):
+def mean_one_bits(cstk, class_img, cvectors, spot_thresh=10**2.55):#, nbits = 18):
     """
     Calculate average intensity of classified pixels per codebits.
     
@@ -144,32 +155,32 @@ def mean_one_bits(cstk, class_img, cvectors):#, nbits = 18):
 def robust_mean(x):
     return np.average(x, weights=np.ones_like(x) / len(x))
                     
-def classify_file(f, nfactor, nvectors):
+def classify_file(hdata, nfactor, nvectors, genesubset=None, thresh=500):
     """
     Wrapper for classify_codestack. Can change this instead of function if 
     intermediate file storage ever changes.
     """
+    pos = hdata.posname
     cvectors = nvectors.copy()
-    np.place(cvectors, cvectors>0., 1.)
-    try:
-        pth, pos = os.path.split(f)
-        print(pos)
-        cstks, nfs, class_imgs = load_codestack_from_npz(f)
-        nfs = {}
-        for z in cstks.keys():
-            cstk = cstks[z]
-            new_class_img = classify_codestack(cstk, nfactor, nvectors)
-            class_imgs[z] = new_class_img
+    np.place(cvectors, cvectors>0., 1.) # Hack to allow normalized vectors as single input
+    print(pos)
+    zindexes = hdata.metadata.zindex.unique()
+#     pos = hdata.metadata.posname.unique()
+    nfs = {}
+    for z in zindexes:
+#         try:
+        cstk = hdata.load_data(pos, z, 'cstk')
+        new_class_img = classify_codestack(cstk, nfactor, nvectors)
+        #class_imgs[z] = new_class_img
+        if genesubset is None:
             new_nf = mean_one_bits(cstk, new_class_img, cvectors)
-            nfs[z] = new_nf
-        np.savez(os.path.join(pth, pos), cstks=cstks, norm_factors=nfs, class_imgs=class_imgs)
-    except Exception as e:
-        print(e)
-        print(traceback.format_exc())
-        return f
-#     pickle.dump({'cstk': cstk, 'nf': nfactor,
-#                  'class_img': new_class_img}, open(f, 'wb'))
-    #return np.mean([n for k, n in nfs.items()], axis=0)
+        else:
+            new_nf = mean_one_bits(cstk, new_class_img, cvectors[genesubset, :])
+        hdata.add_and_save_data(new_nf, pos, z, 'nf')
+        hdata.add_and_save_data(new_class_img, pos, z, 'cimg')
+#         except:
+#             hdata.remove_metadata_by_zindex(z)
+#             continue
 
 def unix_find(pathin):
     """Return results similar to the Unix find command run without options
@@ -185,45 +196,41 @@ if __name__ == '__main__':
     os.environ['GOTO_NUM_THREADS'] = '4'
     os.environ['OMP_NUM_THREADS'] = '4'
     print(args)
+    cstk_path = args.cstk_path
+    ncpu = args.ncpu
+    niter = args.niter
+    nrandom = args.nrandom
     # Assuming these get imported during call below:
     # 1. bitmap
     # 2. bids, blanks, gids, cwords, gene_codeword_vectors, blank_codeword_vectors
     # 3. norm_gene_codeword_vectors, norm_blank_codeword_vectors
-    
     seqfish_config = importlib.import_module(args.cword_config)
     bitmap = seqfish_config.bitmap
     normalized_gene_vectors = seqfish_config.norm_gene_codeword_vectors
     
-    codestacks = unix_find(args.cstk_path)
-#     todo_cstks = []
-#     for f in codestacks:
-#         if any([True if p in f else False for p in args.posnames]):
-#             todo_cstks.append(f)
-#     print(todo_cstks)
-    codestacks = list(np.random.choice(codestacks, size=args.nrandom, replace=False))
-    # iterative norm factor finding
+    poses = [i for i in os.listdir(cstk_path) if os.path.isdir(os.path.join(cstk_path, i))]
+    if nrandom<len(poses):
+        subset = np.random.choice(poses, size=nrandom, replace=False)
+    else:
+        np.random.shuffle(poses)
+        subset = poses
+    print(subset)
+    hybedatas = [HybeData(os.path.join(cstk_path, i)) for i in subset]
+
+    
 # Note preceding blocks and this can be noisy if restarted after crash etccc
-    with multiprocessing.Pool(args.ncpu) as ppool:
+    # Note preceding blocks and this can be noisy if restarted after crash etccc
+    with multiprocessing.Pool(ncpu) as ppool:
         failed_positions = []
-        for i in range(args.niter):
-            print('N Positions left: ', len(codestacks))
+        for i in range(niter):
+            print('N Positions left: ', len(hybedatas))
             if i == 0:
-                cur_nf = np.array(np.nanmean([mean_nfs_npz(c) for c in codestacks], axis=0))
+                cur_nf = np.array(np.nanmean([mean_nfs(hdata) for hdata in hybedatas], axis=0))
                 print('90th Percentile Normalization factors:', cur_nf, sep='\n')
             else:
-                new_nfs = np.array([mean_nfs_npz(c) for c in codestacks])
-                cur_nf = np.nanmean(new_nfs, axis=0)
+                cur_nf = np.array(np.nanmean([mean_nfs(hdata) for hdata in hybedatas], axis=0))
+                cur_nf = np.array([10**2.6 if (i<10**2.6) or np.isnan(i) else i for i in cur_nf])
                 print(cur_nf)
+            sys.stdout.flush()
             classify_pfunc = partial(classify_file, nfactor=cur_nf, nvectors=normalized_gene_vectors)
-            results = ppool.map(classify_pfunc, codestacks)
-            # Returns None if execution successful else returns fname
-            for idx, r in enumerate(results):
-                if r is None:
-                    continue
-                    print('None')
-                else:
-                    failed_positions.append(r)
-                    codestacks.remove(r)
-                    print(r)
-    print('These positions failed during classification: ', failed_positions)
-    
+            results = ppool.map(classify_pfunc, hybedatas)

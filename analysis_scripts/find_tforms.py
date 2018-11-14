@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 from sklearn.cluster import DBSCAN
 from scipy.spatial import KDTree
 from collections import Counter, defaultdict
@@ -102,7 +103,10 @@ def ensembl_bead_reg(inputs, reg_ref='hybe1', max_dist=200,
         results[h]=list(zip(ref_beads, dest_beads))
         # Optimize translation to map paired beads onto each other
         opt_t = scipy.optimize.fmin(error_func, np.mean(t_est, axis=0), full_output=True, disp=False)
-        results[h] = (opt_t[0], opt_t[1], sum(paired_beads_idx))
+        if 'nucstain' in h:
+            results[h] = (opt_t[0], 0, sum(paired_beads_idx))
+        else:
+            results[h] = (opt_t[0], opt_t[1], sum(paired_beads_idx))
     return pos, results
 
 if __name__ == '__main__':
