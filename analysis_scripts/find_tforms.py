@@ -56,12 +56,19 @@ def ensembl_bead_reg(inputs, reg_ref='hybe1', max_dist=200,
     hybes = list(hybe_dict.keys())
     ref = [i for i in hybes if reg_ref in i][0]
     ref_beadarray = hybe_dict.pop(ref)
+    if len(ref_beadarray)<dbscan_min_samples:
+        return 'Failed position not enough reference beads found.'
+    ref_beadarray = np.stack(ref_beadarray, axis=0)
     if ref_beadarray.shape[0]<dbscan_min_samples:
         return 'Failed position not enough reference beads found.'
     ref_tree = KDTree(ref_beadarray[:, :2])
     results = {ref: (np.array((0, 0, 0)), 0, float('inf'))}
     db_clusts = DBSCAN(min_samples=dbscan_min_samples, eps=dbscan_eps)
     for h, beadarray in hybe_dict.items():
+        if len(beadarray)<dbscan_min_samples:
+            results[h] = 'Not enough bead pairs found.'
+            continue
+        beadarray = np.stack(beadarray, axis=0)
         t_est = []
         ref_beads = []
         dest_beads = []
