@@ -25,14 +25,14 @@ hot_pixels = pickle.load(open(os.path.join(base_pth, 'hot_pixels_oct2018.pkl'), 
 # Green - Other Channel
 chromatic_dict = pickle.load(open(os.path.join(base_pth, 'chromatic_october2018.pkl'), 'rb'))
 
-xshift_fr = numpy.add(chromatic_dict['FarRed']['x'].mean(axis=0), range(image_size[0]))
-yshift_fr = numpy.add(chromatic_dict['FarRed']['y'].mean(axis=1), range(image_size[1]))
+xshift_fr = chromatic_dict['FarRed']['x']
+yshift_fr = chromatic_dict['FarRed']['y']
 
-xshift_o = numpy.add(chromatic_dict['Orange']['x'].mean(axis=0), range(image_size[0]))
-yshift_o = numpy.add(chromatic_dict['Orange']['y'].mean(axis=1), range(image_size[1]))
+xshift_o = chromatic_dict['Orange']['x']
+yshift_o = chromatic_dict['Orange']['y']
 
-xshift_db = numpy.add(chromatic_dict['DeepBlue']['x'].mean(axis=0), range(image_size[0]))
-yshift_db = numpy.add(chromatic_dict['DeepBlue']['y'].mean(axis=1), range(image_size[1]))
+xshift_db = chromatic_dict['DeepBlue']['x']
+yshift_db = chromatic_dict['DeepBlue']['y']
 
 farred_psf = imread(os.path.join(base_pth, 'farred_psf_fit_250nmZ_63x.tif'))
 farred_psf = farred_psf[25, 8:17, 8:17]
