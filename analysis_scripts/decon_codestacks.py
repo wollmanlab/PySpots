@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 import os
 from scipy.ndimage import gaussian_filter
 from skimage import restoration, io
@@ -58,10 +59,10 @@ def hdata_multi_z_pseudo_maxprjZ_wrapper(pos_hdata, posname, tforms_xy, tforms_z
 #     np.savez(os.path.join(cstk_save_dir, posname), cstks=codestacks, 
 #             norm_factors = norm_factors, class_imgs = class_imgs)
 def pfunc_img_process(img, channel, hybe, t_xy, fltfield, niter=0):
-    img = np.divide(zstk, fltfield)
+    img = np.divide(img, fltfield)
     img = tform_image(img, channel, t_xy, niter=niter)
     return img
-def pseudo_maxproject_positions_and_tform(posname, md_path, tforms_xy, tforms_z, bitmap, zstart=6, k=2, reg_ref = 'hybe1', ndecon_iter=22, nf_init_qtile=95):
+def pseudo_maxproject_positions_and_tform(posname, md_path, tforms_xy, tforms_z, bitmap, zstart=6, k=2, reg_ref = 'hybe1', ndecon_iter=20, nf_init_qtile=95):
     """
     Wrapper for multiple Z codestack where each is max_projection of few frames above and below.
     """
@@ -77,18 +78,21 @@ def pseudo_maxproject_positions_and_tform(posname, md_path, tforms_xy, tforms_z,
     cstk = np.stack([md.stkread(Channel=chan, hybe=hybe, Position=posname, Zindex=list(range(zstart-z[hybe]-k, zstart-z[hybe]+k+1))).max(axis=2) for seq, hybe, chan in bitmap], axis=2)
                       
     if use_gpu:
-        inputs = [(cstk[:,:,i], channels[i], hybes[i], xy[hybes[i]], flatfield_dict[channels[i]]) for i in range(cstk.shape[2])]
+        
         cstk = [dogonvole(cstk[:,:,i], psf_map[chan], niter=ndecon_iter) for i, chan in enumerate(channels)]
-        with multiprocessing.Pool(24) as ppool:
+        inputs = [(cstk[i], channels[i], hybes[i], xy[hybes[i]], flatfield_dict[channels[i]]) for i in range(len(cstk))]
+        with multiprocessing.Pool(8) as ppool:
             cstk = ppool.starmap(pfunc_img_process, inputs)
     else:
+        print('did not use GPU')
         inputs = [(cstk[:,:,i], channels[i], hybes[i], xy[hybes[i]], flatfield_dict[channels[i]], ndecon_iter) for i in range(cstk.shape[2])]
-        cstk = ppool.starmap(pfunc_img_process, inputs)
+        with multiprocessing.Pool(ncpu) as ppool:
+            cstk = ppool.starmap(pfunc_img_process, inputs)
     cstk = np.stack(cstk, axis=2)
     nf = np.percentile(cstk, nf_init_qtile, axis=(0, 1))
     return cstk, nf
 
-def tform_image(cstk, channel, tvect, niter=22):
+def tform_image(cstk, channel, tvect, niter=20):
     """
     Warp images to correct chromatic abberation and translational stage drift.
     
@@ -144,7 +148,7 @@ def interp_warp(img, x, y):
     nimg = i2(range(img.shape[0]), range(img.shape[1]))
     return nimg
 
-def dogonvole(image, psf, kernel=(2., 2., 0.), blur=(1.1, 1.1, 0.), niter=22):
+def dogonvole(image, psf, kernel=(2., 2., 0.), blur=(1.2, 1.2, 0.), niter=20):
     """
     Perform deconvolution and difference of gaussian processing.
 
@@ -162,7 +166,6 @@ def dogonvole(image, psf, kernel=(2., 2., 0.), blur=(1.1, 1.1, 0.), niter=22):
         Processed image same shape as image input.
     """
     global hot_pixels, use_gpu, gpu_algorithm
-    use_gpu = False
     if not psf.sum() == 1.:
         raise ValueError("psf must be normalized so it sums to 1")
     image = image.astype('float32')
@@ -227,7 +230,7 @@ if __name__=='__main__':
         txy = {k: (v[0], v[1]) for k, v in tforms_xyz.items()}
         tzz = {k: v[2] for k, v in tforms_xyz.items()}
         func_inputs.append((HybeData(os.path.join(out_path, p)), p, txy, tzz))
-    if ncpu>1:
+    if (ncpu>1) and not use_gpu:
         with multiprocessing.Pool(ncpu) as ppool:
             ppool.starmap(pfunc, func_inputs)
     else:
