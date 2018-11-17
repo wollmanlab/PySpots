@@ -213,8 +213,8 @@ if __name__=='__main__':
     out_path = args.out_path
     use_gpu = args.gpu
     ncpu = args.ncpu
-    flatfield_path = args.flatfield_path
-    flatfield_dict = pickle.load(open(flatfield_path, 'rb'))
+#    flatfield_path = args.flatfield_path
+#    flatfield_dict = pickle.load(open(flatfield_path, 'rb'))
     if use_gpu == 1:
         print(device_lib.list_local_devices())
         gpu_algorithm = fd_restoration.RichardsonLucyDeconvolver(2).initialize()
