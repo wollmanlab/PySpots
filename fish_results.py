@@ -5,6 +5,41 @@ import numpy as np
 from skimage.io import imread, imsave
 from skimage.external import tifffile
 
+import os
+import pandas as pd
+import numpy as np
+
+class SingleCellFishResults(object):
+    def __init__(self, pth, ordered_gene_names):
+        self.base_path = pth
+        if not os.path.exists(self.base_path):
+            os.makedirs(self.base_path)
+        self.genes = ordered_gene_names
+        self.codeword_idx = np.arange(len(self.genes))
+        self.expression_table = pd.DataFrame(columns = ['gene_vector'])
+    def add_spot_counts(self, cell_id, counts, overwrite=False):
+        if isinstance(counts, dict):
+            counts = [counts[i] if i in counts else 0 for i in self.codeword_idx]
+        if not isinstance(cell_id, int):
+            raise ValueError("Cell ids must be integers")
+        if cell_id in self.expression_table:
+            if overwrite:
+                print('Warning overwriting existing data.')
+                self.expression_table.at[cell_id, 'gene_vector'] = counts
+            else:
+                raise ValueError('Cell id exists already and overwrite is false.')
+        else:
+            self.expression_table.at[cell_id, 'gene_vector'] = counts
+    def add_data(self, cell_id, data_name, data):
+        if not isinstance(cell_id, int):
+            raise ValueError("Cell ids must be integers")
+        if not cell_id in self.expression_table:
+            raise ValueError("Ancillary data only supported for existing cells.")
+        self.expression_table.at[cell_id, data_name] = data
+        
+
+        
+        
 
 class HybeData(pickle.Pickler):
     def __init__(self, base_path, file_name='hybedata.csv'):
