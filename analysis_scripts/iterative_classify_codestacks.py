@@ -7,7 +7,8 @@ import numpy
 import numpy as np
 from sklearn.preprocessing import normalize
 from scipy.spatial import distance_matrix
-from skimage.morphology import remove_small_objects
+#from hybescope_config.microscope_config import *
+#from metadata import Metadata
 from functools import partial
 import importlib
 import multiprocessing
@@ -26,6 +27,7 @@ if __name__ == '__main__':
 #     parser.add_argument("--posnames", dest="posnames", nargs='*', type=str, default=[], action='store', help="Number z-slices above and below to max project together.")
     parser.add_argument("-r", "--nrandom", type=int, dest="nrandom", default=50, action='store', help="Number of random positions to choose to fit norm_factor.")
     parser.add_argument("-n", "--niter", type=int, dest="niter", default=10, action='store', help="Number of iterations to perform.")
+    parser.add_argument("-d", "--cword_dist", type=float, dest="cword_dist", default=0.5176, action='store', help="Threshold for distance between pixel and codeword for classification.")
 #     parser.add_argument("-m", "--zmax", type=int, dest="zmax", default=15, action='store', help="End making max projections centered at zmax.")
 #     parser.add_argument("-i", "--zskip", type=int, dest="zskip", default=4, action='store', help="Skip this many z-slices between centers of max projections.")
     args = parser.parse_args()
@@ -68,7 +70,7 @@ def cstk_mean_std(hdata):
 #     means, stds = np.stack(means, axis=0), np.stack(stds, axis=0)
 #     return np.nanmean(means, axis=0), np.nanmean(stds, axis=0)
 
-def classify_codestack(cstk, norm_vector, codeword_vectors, csphere_radius=0.5176, clip_intensity=True):
+def classify_codestack(cstk, norm_vector, codeword_vectors, csphere_radius=0.5176, intensity=400):
     """
     Pixel based classification of codestack into gene_id pixels.
     
@@ -91,12 +93,7 @@ def classify_codestack(cstk, norm_vector, codeword_vectors, csphere_radius=0.517
     cstk = cstk.copy()
     cstk = cstk.astype('float32')
     cstk = np.nan_to_num(cstk)
-    if clip_intensity:
-        cstk_means = np.mean(cstk, axis=(0, 1))
-        for i in range(cstk.shape[2]):
-            np.place(cstk[:,:,i], cstk[:,:,i]<=cstk_means[i], 0.01)
-    else:
-        np.place(cstk, cstk<=0., 0.01)
+    np.place(cstk, cstk<=0, 0.01)
     # Normalize for intensity difference between codebits
     normstk = np.divide(cstk, norm_vector)
     # Prevent possible underflow/divide_zero errors
@@ -111,13 +108,11 @@ def classify_codestack(cstk, norm_vector, codeword_vectors, csphere_radius=0.517
         # Check if distance to closest unit codevector is less than csphere thresh
         dmin = np.argmin(d, axis=0)
         dv = [i if d[i, idx]<csphere_radius else -1 for idx, i in enumerate(dmin)]
-#         if not intensity is None:
-#             # Enforce minimum intensity for pixel to be classified
-#             pass
+        if not intensity is None:
+            # Enforce minimum intensity for pixel to be classified
+            pass
         class_img[i, :] = dv
-#     remove_small = remove_small_objects((class_img+1).astype('bool'), min_size=2)
-#     np.place(class_img, ~remove_small, -1)
-    return class_img
+    return class_img#.astype('int16')
 
 def mean_one_bits(cstk, class_img, cvectors, spot_thresh=10**2.55):#, nbits = 18):
     """
@@ -161,7 +156,7 @@ def mean_one_bits(cstk, class_img, cvectors, spot_thresh=10**2.55):#, nbits = 18
 def robust_mean(x):
     return np.average(x, weights=np.ones_like(x) / len(x))
                     
-def classify_file(hdata, nfactor, nvectors, genesubset=None, thresh=500):
+def classify_file(hdata, nfactor, nvectors, genesubset=None, thresh=500, csphere_radius=0.5176):
     """
     Wrapper for classify_codestack. Can change this instead of function if 
     intermediate file storage ever changes.
@@ -176,7 +171,7 @@ def classify_file(hdata, nfactor, nvectors, genesubset=None, thresh=500):
     for z in zindexes:
 #         try:
         cstk = hdata.load_data(pos, z, 'cstk')
-        new_class_img = classify_codestack(cstk, nfactor, nvectors)
+        new_class_img = classify_codestack(cstk, nfactor, nvectors, csphere_radius=csphere_radius)
         #class_imgs[z] = new_class_img
         if genesubset is None:
             new_nf = mean_one_bits(cstk, new_class_img, cvectors)
@@ -206,6 +201,7 @@ if __name__ == '__main__':
     ncpu = args.ncpu
     niter = args.niter
     nrandom = args.nrandom
+    cword_radius = args.cword_dist
     # Assuming these get imported during call below:
     # 1. bitmap
     # 2. bids, blanks, gids, cwords, gene_codeword_vectors, blank_codeword_vectors
@@ -238,5 +234,5 @@ if __name__ == '__main__':
                 cur_nf = np.array([10**2.6 if (i<10**2.6) or np.isnan(i) else i for i in cur_nf])
                 print(cur_nf)
             sys.stdout.flush()
-            classify_pfunc = partial(classify_file, nfactor=cur_nf, nvectors=normalized_gene_vectors)
+            classify_pfunc = partial(classify_file, nfactor=cur_nf, nvectors=normalized_gene_vectors, csphere_radius=cword_radius)
             results = ppool.map(classify_pfunc, hybedatas)
