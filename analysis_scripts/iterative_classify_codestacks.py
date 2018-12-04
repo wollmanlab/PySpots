@@ -7,8 +7,7 @@ import numpy
 import numpy as np
 from sklearn.preprocessing import normalize
 from scipy.spatial import distance_matrix
-#from hybescope_config.microscope_config import *
-#from metadata import Metadata
+from skimage.morphology import remove_small_objects
 from functools import partial
 import importlib
 import multiprocessing
@@ -69,7 +68,7 @@ def cstk_mean_std(hdata):
 #     means, stds = np.stack(means, axis=0), np.stack(stds, axis=0)
 #     return np.nanmean(means, axis=0), np.nanmean(stds, axis=0)
 
-def classify_codestack(cstk, norm_vector, codeword_vectors, csphere_radius=0.5176, intensity=400):
+def classify_codestack(cstk, norm_vector, codeword_vectors, csphere_radius=0.5176, clip_intensity=True):
     """
     Pixel based classification of codestack into gene_id pixels.
     
@@ -92,7 +91,12 @@ def classify_codestack(cstk, norm_vector, codeword_vectors, csphere_radius=0.517
     cstk = cstk.copy()
     cstk = cstk.astype('float32')
     cstk = np.nan_to_num(cstk)
-    np.place(cstk, cstk<=0, 0.01)
+    if clip_intensity:
+        cstk_means = np.mean(cstk, axis=(0, 1))
+        for i in range(cstk.shape[2]):
+            np.place(cstk[:,:,i], cstk[:,:,i]<=cstk_means[i], 0.01)
+    else:
+        np.place(cstk, cstk<=0., 0.01)
     # Normalize for intensity difference between codebits
     normstk = np.divide(cstk, norm_vector)
     # Prevent possible underflow/divide_zero errors
@@ -107,11 +111,13 @@ def classify_codestack(cstk, norm_vector, codeword_vectors, csphere_radius=0.517
         # Check if distance to closest unit codevector is less than csphere thresh
         dmin = np.argmin(d, axis=0)
         dv = [i if d[i, idx]<csphere_radius else -1 for idx, i in enumerate(dmin)]
-        if not intensity is None:
-            # Enforce minimum intensity for pixel to be classified
-            pass
+#         if not intensity is None:
+#             # Enforce minimum intensity for pixel to be classified
+#             pass
         class_img[i, :] = dv
-    return class_img#.astype('int16')
+#     remove_small = remove_small_objects((class_img+1).astype('bool'), min_size=2)
+#     np.place(class_img, ~remove_small, -1)
+    return class_img
 
 def mean_one_bits(cstk, class_img, cvectors, spot_thresh=10**2.55):#, nbits = 18):
     """
