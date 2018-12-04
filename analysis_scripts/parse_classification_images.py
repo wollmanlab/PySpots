@@ -6,7 +6,7 @@ from scipy.spatial import distance_matrix
 import pickle
 import os
 
-def parse_classification_image(class_img, cstk, cvectors, genes, zindex, pix_thresh=0, ave_thresh=500):
+def parse_classification_image(class_img, cstk, cvectors, genes, zindex, pix_thresh=0, ave_thresh=0):
     #class_imgs = data['class_img']
     #cstk = data['cstk']
     label2d = label((class_img+1).astype('uint16'), neighbors=8)
@@ -71,11 +71,15 @@ def multi_z_class_parse_wrapper(hdata, cvectors, genes, return_df = False):
         df['z'] = z
         
         merged_df.append(df)
-    merged_df = pd.concat(merged_df, ignore_index=True)
-    merged_df['posname'] = pos
-    pickle.dump(merged_df, open(os.path.join(hdata.base_path, 'spotcalls.pkl'), 'wb'))
-    if return_df:
-        return merged_df
+    if len(merged_df)>0:
+        merged_df = pd.concat(merged_df, ignore_index=True)
+        merged_df['posname'] = pos
+        pickle.dump(merged_df, open(os.path.join(hdata.base_path, 'spotcalls.pkl'), 'wb'))
+        if return_df:
+            return merged_df
+    else:
+        if return_df:
+            return None
     #return pd.concat(merged_df, ignore_index=True)
 
 def find_bitwise_error_rate(df, cvectors, norm_factor):
@@ -107,4 +111,42 @@ def find_bitwise_error_rate(df, cvectors, norm_factor):
         #break
     return error_counts, bit_freq
 
+from sklearn.cluster import DBSCAN
+from scipy.spatial import KDTree
+
+def purge_zoverlap(df, z_dist = 2):
+    zidxes = df.z.unique()
+    for z_i in range(len(zidxes)-1):
+        subdf = df[(df.z==zidxes[z_i]) | (df.z==zidxes[z_i+1])]
+        yx = subdf.centroid.values
+        yx = np.stack(yx, axis=0)
+        tree = KDTree(yx)
+        dclust = DBSCAN(eps=2, min_samples=2)
+        dclust.fit(yx)
+        skip_list = set(np.where(dclust.labels_==-1)[0])
+        nomatches = []
+        drop_list = []
+        for idx, i in enumerate(yx):
+            if idx % 10000 == 0:
+                print(idx)
+            if idx in skip_list:
+                continue
+            m = tree.query_ball_point(i, 2)
+            m = [j for j in m if j!=idx]
+
+            row_query = subdf.iloc[idx]
+            for j in m:
+                row_match = subdf.iloc[j]
+                if row_match.cword_idx!=row_query.cword_idx:
+                    continue
+
+                if row_match.npixels>=row_query.npixels:
+                    drop_list.append((idx, j))
+                else:
+                    drop_list.append((j, idx))
+                    break
+        if len(drop_list)>0:
+            droppers, keepers = zip(*drop_list)
+            df.drop(index=subdf.iloc[list(droppers)].index,inplace=True)
+    return df
 
