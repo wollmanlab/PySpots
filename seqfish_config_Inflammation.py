@@ -24,7 +24,7 @@ depricated_bitmap = [('RS0095_cy5', 'hybe2', 'FarRed'), ('RS0109_cy5', 'hybe4', 
           ('RS0548_atto565', 'hybe2', 'Orange'), ('RS64.0_atto565', 'hybe1', 'Orange'),
           ('RSN9927.0_cy5', 'hybe8', 'FarRed'), ('RSN2336.0_cy5', 'hybe7', 'FarRed'), 
           ('RSN1807.0_cy5', 'hybe9', 'FarRed'), ('RSN4287.0_atto565', 'hybe7', 'Orange'), 
-          ('RSN1252.0_atto565', 'hybe9', 'Orange'), ('RSN9535.0_atto565', 'hybe8', 'Orange')
+          ('RSN1252.0_atto565', 'hybe9', 'Orange'), ('RSN9535.0_atto565', 'hybe8', 'Orange')]
           
 bitmap = [('RS0095_cy5', 'hybe1', 'FarRed'), ('RS0109_cy5', 'hybe3', 'FarRed'),
           ('RS0175_cy5', 'hybe5', 'FarRed'), ('RS0237_cy5', 'hybe6', 'FarRed'),
@@ -34,13 +34,12 @@ bitmap = [('RS0095_cy5', 'hybe1', 'FarRed'), ('RS0109_cy5', 'hybe3', 'FarRed'),
           ('RS0548_atto565', 'hybe1', 'Orange'), ('RS64.0_atto565', 'hybe6', 'Orange'),
           ('RSN9927.0_cy5', 'hybe8', 'FarRed'), ('RSN2336.0_cy5', 'hybe7', 'FarRed'), 
           ('RSN1807.0_cy5', 'hybe9', 'FarRed'), ('RSN4287.0_atto565', 'hybe7', 'Orange'), 
-          ('RSN1252.0_atto565', 'hybe9', 'Orange'), ('RSN9535.0_atto565', 'hybe8', 'Orange')
-         ]
+          ('RSN1252.0_atto565', 'hybe9', 'Orange'), ('RSN9535.0_atto565', 'hybe8', 'Orange')]
 nbits = len(bitmap)
 
 # config_options
 codebook_pth = '/bigstore/GeneralStorage/Zach/MERFISH/Cornea/Inflammation.txt'
-base_pth = '/home/zach/Documents/PySpots/hybescope_config/'
+base_pth = '/home/zach/PythonRepos/PySpots/hybescope_config/'
          
 # Import the codebook for genes in the experiment
 codewords = pandas.read_csv(codebook_pth,  # Warning - file import
@@ -68,7 +67,7 @@ def load_codebook(fname):
             barcodes.append(list(bc))
     return np.array(barcodes)
 
-cwords = load_codebook('/home/zach/Documents/PySpots/hybescope_config/MHD4_18bit_187cwords.csv')
+cwords = load_codebook('/home/zach/PythonRepos/PySpots/hybescope_config/MHD4_18bit_187cwords.csv')
 # Find unique gene Codewords (isoforms of same gene can have same barcode)
 # and also find unused codewords MHD4 from use codewords for False Positive Detection
 c_dropped = codewords.drop_duplicates('name')
