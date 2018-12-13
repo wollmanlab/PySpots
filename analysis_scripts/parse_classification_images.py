@@ -4,6 +4,7 @@ import numpy as np
 from fish_results import HybeData
 from collections import defaultdict, Counter
 from scipy.spatial import distance_matrix
+from metadata import Metadata
 from functools import partial
 import importlib
 import multiprocessing
