@@ -15,7 +15,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("cstk_path", type=str, help="Path to folder containing codestack npz files.")
     parser.add_argument("cword_config", type=str, help="Path to python file initializing the codewords and providing bitmap variable.")
-    parser.add_argument("-p", "--nthreads", type=int, dest="ncpu", default=4, action='store', help="Number of cores to utilize (default 8x4MKL Threads).")
+    parser.add_argument("-p", "--nthreads", type=int, dest="ncpu", default=16, action='store', help="Number of cores to utilize (default 8x4MKL Threads).")
     parser.add_argument("-c", "--coords", type=int, dest="coords", default=0, action='store', help="Do you want to add position coordinate data to df? (0,1)")
     parser.add_argument("-m", "--md_path", type=str, dest="md_path", default=False, action='store', help="Metadata Path for finding position coordinates")
     args = parser.parse_args()
@@ -181,7 +181,7 @@ if __name__ == '__main__':
     with multiprocessing.Pool(ncpu) as ppool:
         parse_pfunc = partial(multi_z_class_parse_wrapper,cvectors=cvectors,genes=genes)
         results = ppool.map(parse_pfunc, hybedatas)
-        
+    print('Combining all df')
     spotcalls = []
     if coords != 0:
         if args.md_path:
@@ -193,11 +193,14 @@ if __name__ == '__main__':
                     temp = md.image_table[md.image_table.Position==pos]
                     Z = temp[md.image_table[md.image_table.Position==pos].Zindex==zindex].Z.iloc[0]
                     temp_df = hdata.load_data(hdata.posname,zindex,'spotcalls')
-                    temp_df['coordX'] = XY[0]
-                    temp_df['coordY'] = XY[1]
-                    temp_df['coordZ'] = Z
-                    hdata.add_and_save_data(temp_df,pos,zindex,'spotcalls')
-                    spotcalls.append(temp_df)
+                    try:
+                        temp_df['coordX'] = XY[0]
+                        temp_df['coordY'] = XY[1]
+                        temp_df['coordZ'] = Z
+                        hdata.add_and_save_data(temp_df,pos,zindex,'spotcalls')
+                        spotcalls.append(temp_df)
+                    except:
+                        continue
             spotcalls = pd.concat(spotcalls,ignore_index=True)
             spotcalls.to_csv(os.path.join(cstk_path,'spotcalls.csv'))
         else:
@@ -205,6 +208,10 @@ if __name__ == '__main__':
     if coords == 0:
         for hdata in hybedatas:
             for zindex in hdata.metadata.zindex.unique():
-                spotcalls.append(hdata.load_data(hdata.posname,zindex,'spotcalls'))
+                try:
+                    spotcalls.append(hdata.load_data(hdata.posname,zindex,'spotcalls'))
+                except:
+                    continue
         spotcalls = pd.concat(spotcalls,ignore_index=True)
         spotcalls.to_csv(os.path.join(cstk_path,'spotcalls.csv'))
+    print('Finished')
