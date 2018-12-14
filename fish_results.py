@@ -103,8 +103,8 @@ class HybeData(pickle.Pickler):
         save_passed = self.save_data(data, full_fname, dtype)
         if rewrite_metadata:
             for i in self.metadata.columns:
-            if 'Unnamed' in i:
-                self.metadata = self.metadata.drop(columns=i)
+                if 'Unnamed' in i:
+                    self.metadata = self.metadata.drop(columns=i)
             self.metadata.to_csv(os.path.join(self.base_path, self.file_name),index=False)
 
     def remove_metadata_by_zindex(self, zidx):
