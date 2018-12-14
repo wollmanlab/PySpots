@@ -16,9 +16,9 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("cstk_path", type=str, help="Path to folder containing codestack npz files.")
     parser.add_argument("cword_config", type=str, help="Path to python file initializing the codewords and providing bitmap variable.")
-    parser.add_argument("-p", "--nthreads", type=int, dest="ncpu", default=16, action='store', help="Number of cores to utilize (default 8x4MKL Threads).")
-    parser.add_argument("-c", "--coords", type=int, dest="coords", default=0, action='store', help="Do you want to add position coordinate data to df? (0,1)")
-    parser.add_argument("-m", "--md_path", type=str, dest="md_path", default=False, action='store', help="Metadata Path for finding position coordinates")
+    parser.add_argument("-p", "--nthreads", type=int, dest="ncpu", default=64, action='store', help="Number of cores to utilize (default 8x4MKL Threads).")
+#     parser.add_argument("-c", "--coords", type=int, dest="coords", default=0, action='store', help="Do you want to add position coordinate data to df? (0,1)")
+#     parser.add_argument("-m", "--md_path", type=str, dest="md_path", default=False, action='store', help="Metadata Path for finding position coordinates")
     args = parser.parse_args()
 
 def parse_classification_image(class_img, cstk, cvectors, genes, zindex, pix_thresh=0, ave_thresh=0):
@@ -166,16 +166,18 @@ def purge_zoverlap(df, z_dist = 2):
     return df
 
 if __name__ == '__main__':
-    os.environ['MKL_NUM_THREADS'] = '4'
-    os.environ['GOTO_NUM_THREADS'] = '4'
-    os.environ['OMP_NUM_THREADS'] = '4'
+    os.environ['MKL_NUM_THREADS'] = '1'
+    os.environ['GOTO_NUM_THREADS'] = '1'
+    os.environ['OMP_NUM_THREADS'] = '1'
     print(args)
     cstk_path = args.cstk_path
     ncpu = args.ncpu
-    coords = args.coords
     seqfish_config = importlib.import_module(args.cword_config)
     cvectors = seqfish_config.norm_all_codeword_vectors
-    genes = seqfish_config.gids+seqfish_config.bids
+    try:
+        genes = seqfish_config.gids+seqfish_config.bids
+    except:
+        genes = seqfish_config.gids
     poses = [i for i in os.listdir(cstk_path) if os.path.isdir(os.path.join(cstk_path, i))]
     hybedatas = [HybeData(os.path.join(cstk_path, i)) for i in poses]
     
@@ -184,35 +186,13 @@ if __name__ == '__main__':
         results = ppool.map(parse_pfunc, hybedatas)
     print('Combining all df')
     spotcalls = []
-    if coords != 0:
-        if args.md_path:
-            md = Metadata(args.md_path)
-            for hdata in hybedatas:
-                pos = hdata.posname
-                XY = md.image_table[md.image_table.Position==pos].XY.iloc[0]
-                for zindex in hdata.metadata.zindex.unique():
-                    temp = md.image_table[md.image_table.Position==pos]
-                    Z = temp[md.image_table[md.image_table.Position==pos].Zindex==zindex].Z.iloc[0]
-                    temp_df = hdata.load_data(hdata.posname,zindex,'spotcalls')
-                    try:
-                        temp_df['coordX'] = XY[0]
-                        temp_df['coordY'] = XY[1]
-                        temp_df['coordZ'] = Z
-                        hdata.add_and_save_data(temp_df,pos,zindex,'spotcalls')
-                        spotcalls.append(temp_df)
-                    except:
-                        continue
-            spotcalls = pd.concat(spotcalls,ignore_index=True)
-            spotcalls.to_csv(os.path.join(cstk_path,'spotcalls.csv'))
-        else:
-            coords = 0
-    if coords == 0:
-        for hdata in hybedatas:
+    for hdata in hybedatas:
             for zindex in hdata.metadata.zindex.unique():
                 try:
                     spotcalls.append(hdata.load_data(hdata.posname,zindex,'spotcalls'))
                 except:
                     continue
-        spotcalls = pd.concat(spotcalls,ignore_index=True)
-        spotcalls.to_csv(os.path.join(cstk_path,'spotcalls.csv'))
+    spotcalls = pd.concat(spotcalls,ignore_index=True)
+    pickle.dump(spotcalls,open(os.path.join(cstk_path,'spotcalls.csv'),'wb'))
+
     print('Finished')
