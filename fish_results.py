@@ -83,7 +83,7 @@ class HybeData(pickle.Pickler):
         elif dtype == 'beads':
             fname = "beads_{0}{1}{2}.csv".format(posname, "_h_", zindex)
         elif dtype == 'tforms':
-            fname = "tforms.csv"
+            fname = "tforms_{0}{1}{2}.csv".format(posname, "_h_", zindex)
         elif dtype == 'spotcalls':
             fname = "spotcalls_{0}{1}{2}.pkl".format(posname, sep, zindex)
         return fname
@@ -126,10 +126,8 @@ class HybeData(pickle.Pickler):
         elif dtype == 'mask':
             tifffile.imsave(fname, data.astype('int16'))
         elif dtype == 'beads':
-            data = data.drop_duplicates()
             dout = data.to_csv(fname,index=False)
         elif dtype == 'tforms':
-            data = data.drop_duplicates()
             dout = data.to_csv(fname,index=False)
         elif dtype == 'spotcalls':
             pickle.dump(data,open(fname,'wb'))
