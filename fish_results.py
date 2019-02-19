@@ -51,12 +51,40 @@ class HybeData(pickle.Pickler):
         else:
             self.metadata = pandas.DataFrame(columns=['posname', 'zindex', 'dtype', 'filename'])  # creates hybedata if it isn't there
 
+    def regenerate_metadata(self,verbose=False):
+        # Generate a hybedata.csv from the existing files in the dir
+        dtypes = ['nf','cstk','cimg','mask','beads','tforms','spotcalls']
+        for relative_fname in os.listdir(self.base_path):
+            try:
+                dtype = relative_fname.split('_')[0]
+                zindex = relative_fname.split('_')[-1].split('.')[0]
+                posname = relative_fname.split(dtype+'_')[1].split('_z')[0]
+                if dtype in dtypes:
+                    self.metadata = self.metadata.append({'posname': posname, 'zindex': zindex,
+                                                          'dtype': dtype, 'filename': relative_fname},
+                                                         ignore_index=True)
+            except:
+                if 'hybedata.csv' in relative_fname:
+                    continue
+                elif 'processing.pkl' in relative_fname:
+                    continue
+                else:
+                    print(pos, relative_fname)
+        self.metadata = self.metadata.drop_duplicates()
+        self.metadata.to_csv(os.path.join(self.base_path, self.file_name),index=False)
+        if verbose == True:
+            return self.metadata
+        
     def load_metadata(self, pth):
         all_mds = []
         for subdir, curdir, filez in os.walk(pth):
             if self.file_name in filez:
                 try:
-                    all_mds.append(pandas.read_csv(os.path.join(self.base_path, subdir, self.file_name)))
+                    temp = pandas.read_csv(os.path.join(self.base_path, subdir, self.file_name))
+                    if len(temp) == 0:
+                        # if the metadata is empty try and generate one from the file names
+                        temp = regenerate_metadata(self,verbose=False)
+                    all_mds.append(temp)
                 except Exception as e:
                     print(e)
                     continue
@@ -102,6 +130,7 @@ class HybeData(pickle.Pickler):
             os.makedirs(pth_part)
         save_passed = self.save_data(data, full_fname, dtype)
         if rewrite_metadata:
+            self.metadata = self.metadata.drop_duplicates()
             for i in self.metadata.columns:
                 if 'Unnamed' in i:
                     self.metadata = self.metadata.drop(columns=i)
@@ -135,7 +164,16 @@ class HybeData(pickle.Pickler):
 
     def get_data(self, posname, zindex, dtype, fname_only=False):
         if fname_only:
-            return 'Not Implemented'
+            try:
+                dtype = fname_only.split('_')[0]
+                zindex = fname_only.split('_')[-1].split('.')[0]
+                posname = fname_only.split(dtype+'_')[1].split('_z')[0]
+                out = self.load_data(posname, zindex, dtype)
+                return out
+            except:
+                print('Couldnt generate "dtype" "zindex" or "posname" from filename provided')
+                print('Try giving the filename without the full path')
+    
         else:
             return self.load_data(posname, zindex, dtype)
 
@@ -156,6 +194,8 @@ class HybeData(pickle.Pickler):
             dout = tifffile.imread(full_fname).astype(np.float64)
             dout = np.swapaxes(np.swapaxes(dout,0,2),0,1)
         elif dtype == 'nf':
+            dout = np.genfromtxt(full_fname, delimiter=',')
+        elif dtype == 'weights':
             dout = np.genfromtxt(full_fname, delimiter=',')
         elif dtype == 'cimg':
             dout = tifffile.imread(full_fname).astype('int16')
