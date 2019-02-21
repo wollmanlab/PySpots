@@ -191,6 +191,7 @@ def classify_tform(tform_dict,pos,max_thresh):
     goodness = 0
     if type(tform_dict) != dict:
         print('No beads in', pos)
+        goodness = 1
     else:
         for hybe in tform_dict.keys():
             print(tform_dict[hybe][1])
@@ -210,19 +211,20 @@ def add_bead_data(bead_dicts, ave_bead, Input):
         bead_dict = bead_dicts[pos]
     else:
         bead_dict = {}
-        
+    processed = 0   
     for h in fnames_dict.keys():
         #convert to hybe1 not hybe1_4
         H = h.split('_')[0]
         if H in bead_dict:
             continue
         else:
+            processed = processed + 1
             beads = find_beads_3D(fnames_dict[h], ave_bead)
             bead_dict[H] = beads
             
     tform_dict = ensembl_bead_reg(bead_dict,pos)
     
-    return bead_dict, tform_dict, pos
+    return bead_dict, tform_dict, pos, processed
     
 def load_fnames(md_path):
     md = Metadata(md_path)
@@ -271,19 +273,23 @@ if __name__ == '__main__':
         bead_dicts = pickle.load(open(os.path.join(results_path,'beads.pkl'), 'rb'))
     else:
         bead_dicts = defaultdict(dict)
-    tform_dicts = defaultdict(dict)
+    if os.path.exists(os.path.join(results_path,'tforms.pkl')):
+        tform_dicts = pickle.load(open(os.path.join(results_path,'tforms.pkl'), 'rb'))
+    else:
+        tform_dicts = defaultdict(dict)
     pfunc = partial(add_bead_data,bead_dicts,Ave_Bead)
     with multiprocessing.Pool(ncpu) as p:
-        for Bead_dict,Tform_dict,pos in p.imap(pfunc, Input, chunksize=1):
-            bead_dicts[pos] = Bead_dict
-            pickle.dump(bead_dicts, open(os.path.join(results_path,'beads.pkl'), 'wb'))
-            
-            goodness = classify_tform(Tform_dict,pos,max_thresh)
-            if goodness == 0:
-                tform_dicts['good'][pos] = Tform_dict
-                print(pos, 'all good')
+        for Bead_dict,Tform_dict,pos,processed in p.imap(pfunc, Input, chunksize=1):
+            if processed>0:
+                bead_dicts[pos] = Bead_dict
+                pickle.dump(bead_dicts, open(os.path.join(results_path,'beads.pkl'), 'wb'))
+                goodness = classify_tform(Tform_dict,pos,max_thresh)
+                if goodness == 0:
+                    tform_dicts['good'][pos] = Tform_dict
+                    print(pos, 'all good')
+                else:
+                    tform_dicts['bad'][pos] = Tform_dict
+                    print(pos, 'no bueno')
+                pickle.dump(tform_dicts, open(os.path.join(results_path,'tforms.pkl'), 'wb'))
             else:
-                tform_dicts['bad'][pos] = Tform_dict
-                print(pos, 'no bueno')
-            pickle.dump(tform_dicts, open(os.path.join(results_path,'tforms.pkl'), 'wb'))
-            
+                print(pos,' Already Done')
