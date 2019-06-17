@@ -4,7 +4,6 @@ import pandas
 import numpy as np
 from skimage.io import imread, imsave
 from skimage.external import tifffile
-
 import os
 import pandas as pd
 import numpy as np
@@ -68,12 +67,8 @@ class SingleCellFishResults(object):
         
         
 
-        
-        
-
 class HybeData(pickle.Pickler):
     def __init__(self, base_path, file_name='hybedata.csv'):
-        #fpath = os.path.join(base_path, file_name)
         self.base_path = base_path
         self.file_name = file_name
         if self.base_path[-1]=='/':
@@ -84,14 +79,42 @@ class HybeData(pickle.Pickler):
         if os.path.exists(base_path):
             mdata_loaded = self.load_metadata(base_path)
         else:
-            self.metadata = pandas.DataFrame(columns=['posname', 'zindex', 'dtype', 'filename'])
-            #raise ValueError('Invalid initialization path provided. Does not exist.')
+            self.metadata = pandas.DataFrame(columns=['posname', 'zindex', 'dtype', 'filename'])  # creates hybedata if it isn't there
+
+    def regenerate_metadata(self,verbose=False):
+        # Generate a hybedata.csv from the existing files in the dir
+        dtypes = ['nf','cstk','cimg','mask','beads','tforms','spotcalls']
+        for relative_fname in os.listdir(self.base_path):
+            try:
+                dtype = relative_fname.split('_')[0]
+                zindex = relative_fname.split('_')[-1].split('.')[0]
+                posname = relative_fname.split(dtype+'_')[1].split('_z')[0]
+                if dtype in dtypes:
+                    self.metadata = self.metadata.append({'posname': posname, 'zindex': zindex,
+                                                          'dtype': dtype, 'filename': relative_fname},
+                                                         ignore_index=True)
+            except:
+                if 'hybedata.csv' in relative_fname:
+                    continue
+                elif 'processing.pkl' in relative_fname:
+                    continue
+                else:
+                    print(pos, relative_fname)
+        self.metadata = self.metadata.drop_duplicates()
+        self.metadata.to_csv(os.path.join(self.base_path, self.file_name),index=False)
+        if verbose == True:
+            return self.metadata
+        
     def load_metadata(self, pth):
         all_mds = []
         for subdir, curdir, filez in os.walk(pth):
             if self.file_name in filez:
                 try:
-                    all_mds.append(pandas.read_csv(os.path.join(self.base_path, subdir, self.file_name)))
+                    temp = pandas.read_csv(os.path.join(self.base_path, subdir, self.file_name))
+                    if len(temp) == 0:
+                        # if the metadata is empty try and generate one from the file names
+                        temp = regenerate_metadata(self,verbose=False)
+                    all_mds.append(temp)
                 except Exception as e:
                     print(e)
                     continue
@@ -101,7 +124,11 @@ class HybeData(pickle.Pickler):
         else:
             hdata = pandas.concat(all_mds, ignore_index=True)
             self.metadata = hdata
+        for i in self.metadata.columns:
+            if 'Unnamed' in i:
+                self.metadata = self.metadata.drop(columns=i)
             return True
+
     def generate_fname(self, posname, zindex, dtype, sep="_z_"):
         if dtype == 'cstk':
             fname = "cstk_{0}{1}{2}.tif".format(posname, sep, zindex)
@@ -109,8 +136,16 @@ class HybeData(pickle.Pickler):
             fname = "nf_{0}{1}{2}.csv".format(posname, sep, zindex)
         elif dtype == 'cimg':
             fname = "cimg_{0}{1}{2}.tif".format(posname, sep, zindex)
-        relative_fname = os.path.join(fname)
-        return relative_fname
+        elif dtype == 'mask':
+            fname = "mask_{0}{1}{2}.tif".format(posname, sep, zindex)
+        elif dtype == 'beads':
+            fname = "beads_{0}{1}{2}.csv".format(posname, "_h_", zindex)
+        elif dtype == 'tforms':
+            fname = "tforms_{0}{1}{2}.csv".format(posname, "_h_", zindex)
+        elif dtype == 'spotcalls':
+            fname = "spotcalls_{0}{1}{2}.pkl".format(posname, sep, zindex)
+        return fname
+
     def add_and_save_data(self, data, posname, zindex, dtype, rewrite_metadata=True):
         relative_fname = self.generate_fname(posname, zindex, dtype)
         
@@ -125,7 +160,12 @@ class HybeData(pickle.Pickler):
             os.makedirs(pth_part)
         save_passed = self.save_data(data, full_fname, dtype)
         if rewrite_metadata:
-            self.metadata.to_csv(os.path.join(self.base_path, self.file_name))
+            self.metadata = self.metadata.drop_duplicates()
+            for i in self.metadata.columns:
+                if 'Unnamed' in i:
+                    self.metadata = self.metadata.drop(columns=i)
+            self.metadata.to_csv(os.path.join(self.base_path, self.file_name),index=False)
+
     def remove_metadata_by_zindex(self, zidx):
         self.metadata = self.metadata[self.metadata['zindex'] != zidx]
         if not os.path.exists(self.base_path):
@@ -142,24 +182,42 @@ class HybeData(pickle.Pickler):
             dout = np.savetxt(fname, data)
         elif dtype == 'cimg':
             tifffile.imsave(fname, data.astype('int16')) # Allow imagej to read
+        elif dtype == 'mask':
+            tifffile.imsave(fname, data.astype('int16'))
+        elif dtype == 'beads':
+            dout = data.to_csv(fname,index=False)
+        elif dtype == 'tforms':
+            dout = data.to_csv(fname,index=False)
+        elif dtype == 'spotcalls':
+            pickle.dump(data,open(fname,'wb'))
         return True
 
     def get_data(self, posname, zindex, dtype, fname_only=False):
         if fname_only:
-            return 'Not Implemented'
+            try:
+                dtype = fname_only.split('_')[0]
+                zindex = fname_only.split('_')[-1].split('.')[0]
+                posname = fname_only.split(dtype+'_')[1].split('_z')[0]
+                out = self.load_data(posname, zindex, dtype)
+                return out
+            except:
+                print('Couldnt generate "dtype" "zindex" or "posname" from filename provided')
+                print('Try giving the filename without the full path')
+    
         else:
             return self.load_data(posname, zindex, dtype)
+
     def lookup_data_filename(self, posname, zindex, dtype):
         subset = self.metadata[(self.metadata.posname==posname) & (self.metadata.zindex==zindex) & (self.metadata.dtype==dtype)]
         if subset.shape[0]==0:
             return None
         else:
             return subset.filename.values[0]
+
     def load_data(self, posname, zindex, dtype):
         relative_fname = self.lookup_data_filename(posname, zindex, dtype)
         
         if relative_fname is None:
-#             raise ValueError("No items for in metadata matching request.")
             return None
         full_fname = os.path.join(self.base_path, relative_fname) 
         if dtype == 'cstk':
@@ -167,7 +225,16 @@ class HybeData(pickle.Pickler):
             dout = np.swapaxes(np.swapaxes(dout,0,2),0,1)
         elif dtype == 'nf':
             dout = np.genfromtxt(full_fname, delimiter=',')
+        elif dtype == 'weights':
+            dout = np.genfromtxt(full_fname, delimiter=',')
         elif dtype == 'cimg':
             dout = tifffile.imread(full_fname).astype('int16')
-            #dout = np.swapaxes(np.swapaxes(dout,0,2),0,1)
+        elif dtype == 'mask':
+            dout = tifffile.imread(full_fname).astype('int16')
+        elif dtype == 'beads':
+            dout = pandas.read_csv(full_fname)
+        elif dtype == 'tforms':
+            dout = pandas.read_csv(full_fname)
+        elif dtype == 'spotcalls':
+            dout = pickle.load(open(full_fname,'rb'))
         return dout

@@ -1,10 +1,25 @@
 from skimage.measure import regionprops, label
 import pandas as pd
 import numpy as np
+from fish_results import HybeData
 from collections import defaultdict, Counter
 from scipy.spatial import distance_matrix
+from metadata import Metadata
+from functools import partial
+import importlib
+import multiprocessing
 import pickle
 import os
+
+if __name__ == '__main__':
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("cstk_path", type=str, help="Path to folder containing codestack npz files.")
+    parser.add_argument("cword_config", type=str, help="Path to python file initializing the codewords and providing bitmap variable.")
+    parser.add_argument("-p", "--nthreads", type=int, dest="ncpu", default=64, action='store', help="Number of cores to utilize (default 8x4MKL Threads).")
+#     parser.add_argument("-c", "--coords", type=int, dest="coords", default=0, action='store', help="Do you want to add position coordinate data to df? (0,1)")
+#     parser.add_argument("-m", "--md_path", type=str, dest="md_path", default=False, action='store', help="Metadata Path for finding position coordinates")
+    args = parser.parse_args()
 
 def parse_classification_image(class_img, cstk, cvectors, genes, zindex, pix_thresh=0, ave_thresh=0):
     #class_imgs = data['class_img']
@@ -60,6 +75,7 @@ def multi_z_class_parse_wrapper(hdata, cvectors, genes, return_df = False):
 #     data = np.load(f)
 #     cstks, nfs, class_imgs = data['cstks'].tolist(), data['norm_factors'].tolist(), data['class_imgs'].tolist()
     pos = hdata.posname
+    print(pos)
     cvectors = cvectors.copy()
     np.place(cvectors, cvectors>0, 1.)
 #     data.close()
@@ -69,18 +85,17 @@ def multi_z_class_parse_wrapper(hdata, cvectors, genes, return_df = False):
         class_img = hdata.load_data(pos, z, 'cimg')
         df, bvs = parse_classification_image(class_img, cstk, cvectors, genes, z)
         df['z'] = z
-        
-        merged_df.append(df)
-    if len(merged_df)>0:
-        merged_df = pd.concat(merged_df, ignore_index=True)
-        merged_df['posname'] = pos
-        pickle.dump(merged_df, open(os.path.join(hdata.base_path, 'spotcalls.pkl'), 'wb'))
-        if return_df:
-            return merged_df
-    else:
-        if return_df:
-            return None
-    #return pd.concat(merged_df, ignore_index=True)
+        df['posname'] = pos
+        hdata.add_and_save_data(df,pos,z,'spotcalls')
+#         merged_df.append(df)
+#     if len(merged_df)>0:
+#         merged_df = pd.concat(merged_df, ignore_index=True)
+#         pickle.dump(merged_df, open(os.path.join(hdata.base_path, 'spotcalls.pkl'), 'wb'))
+#         if return_df:
+#             return merged_df
+#     else:
+#         if return_df:
+    return None
 
 def find_bitwise_error_rate(df, cvectors, norm_factor):
     cvectors = cvectors.copy()
@@ -150,3 +165,34 @@ def purge_zoverlap(df, z_dist = 2):
             df.drop(index=subdf.iloc[list(droppers)].index,inplace=True)
     return df
 
+if __name__ == '__main__':
+    os.environ['MKL_NUM_THREADS'] = '1'
+    os.environ['GOTO_NUM_THREADS'] = '1'
+    os.environ['OMP_NUM_THREADS'] = '1'
+    print(args)
+    cstk_path = args.cstk_path
+    ncpu = args.ncpu
+    seqfish_config = importlib.import_module(args.cword_config)
+    cvectors = seqfish_config.norm_all_codeword_vectors
+    try:
+        genes = seqfish_config.gids+seqfish_config.bids
+    except:
+        genes = seqfish_config.gids
+    poses = [i for i in os.listdir(cstk_path) if os.path.isdir(os.path.join(cstk_path, i))]
+    hybedatas = [HybeData(os.path.join(cstk_path, i)) for i in poses]
+    
+    with multiprocessing.Pool(ncpu) as ppool:
+        parse_pfunc = partial(multi_z_class_parse_wrapper,cvectors=cvectors,genes=genes)
+        results = ppool.map(parse_pfunc, hybedatas)
+    print('Combining all df')
+    spotcalls = []
+    for hdata in hybedatas:
+            for zindex in hdata.metadata.zindex.unique():
+                try:
+                    spotcalls.append(hdata.load_data(hdata.posname,zindex,'spotcalls'))
+                except:
+                    continue
+    spotcalls = pd.concat(spotcalls,ignore_index=True)
+    pickle.dump(spotcalls,open(os.path.join(cstk_path,'spotcalls.csv'),'wb'))
+
+    print('Finished')

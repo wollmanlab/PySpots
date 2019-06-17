@@ -28,6 +28,7 @@ if __name__ == '__main__':
     parser.add_argument("-r", "--nrandom", type=int, dest="nrandom", default=50, action='store', help="Number of random positions to choose to fit norm_factor.")
     parser.add_argument("-n", "--niter", type=int, dest="niter", default=10, action='store', help="Number of iterations to perform.")
     parser.add_argument("-d", "--cword_dist", type=float, dest="cword_dist", default=0.5176, action='store', help="Threshold for distance between pixel and codeword for classification.")
+    parser.add_argument("-c", "--classify", type=float, dest="classify", default=0, action='store', help="Do you want to run full classification on all positions with real and blank barcodes after iterative classification? (0 or 1).")
 #     parser.add_argument("-m", "--zmax", type=int, dest="zmax", default=15, action='store', help="End making max projections centered at zmax.")
 #     parser.add_argument("-i", "--zskip", type=int, dest="zskip", default=4, action='store', help="Skip this many z-slices between centers of max projections.")
     args = parser.parse_args()
@@ -114,7 +115,7 @@ def classify_codestack(cstk, norm_vector, codeword_vectors, csphere_radius=0.517
         class_img[i, :] = dv
     return class_img#.astype('int16')
 
-def mean_one_bits(cstk, class_img, cvectors, spot_thresh=10**2.55):#, nbits = 18):
+def mean_one_bits(cstk, class_img, cvectors, spot_thresh=10**2.55,mean_min_spot_thresh = 485):#, nbits = 18):
     """
     Calculate average intensity of classified pixels per codebits.
     
@@ -135,6 +136,7 @@ def mean_one_bits(cstk, class_img, cvectors, spot_thresh=10**2.55):#, nbits = 18
     bitvalues = defaultdict(list)
     cstk = cstk.astype('float32')
     nbits = cstk.shape[2]
+    mean_background = []
     for i in range(cvectors.shape[0]):
         x, y = np.where(class_img==i)
         if len(x) == 0:
@@ -143,6 +145,9 @@ def mean_one_bits(cstk, class_img, cvectors, spot_thresh=10**2.55):#, nbits = 18
         if len(onebits)<1:
             continue
         for i in onebits:
+            if np.mean(cstk[x, y, i])<mean_min_spot_thresh:
+                mean_background.append(np.mean(cstk[x, y, i]))
+                continue
             bitvalues[i].append(np.mean(cstk[x, y, i]))
     mean_bits = []
     for i in range(nbits):
@@ -151,11 +156,11 @@ def mean_one_bits(cstk, class_img, cvectors, spot_thresh=10**2.55):#, nbits = 18
             mean_bits.append(np.nan)
         else:
             mean_bits.append(robust_mean(bitvalues[i]))
-    return np.array(mean_bits)
+    return np.array(mean_bits),mean_background
 
 def robust_mean(x):
     return np.average(x, weights=np.ones_like(x) / len(x))
-                    
+
 def classify_file(hdata, nfactor, nvectors, genesubset=None, thresh=500, csphere_radius=0.5176):
     """
     Wrapper for classify_codestack. Can change this instead of function if 
@@ -168,20 +173,27 @@ def classify_file(hdata, nfactor, nvectors, genesubset=None, thresh=500, csphere
     zindexes = hdata.metadata.zindex.unique()
 #     pos = hdata.metadata.posname.unique()
     nfs = {}
+    background_intensity = []
     for z in zindexes:
 #         try:
         cstk = hdata.load_data(pos, z, 'cstk')
+#         if cstk.shape[2] !=nvectors.shape[1]:
+#             print(len(nvectors))
+#             print(pos,z,'codestack is the wrong size')
+#             continue
         new_class_img = classify_codestack(cstk, nfactor, nvectors, csphere_radius=csphere_radius)
         #class_imgs[z] = new_class_img
         if genesubset is None:
-            new_nf = mean_one_bits(cstk, new_class_img, cvectors)
+            new_nf,background = mean_one_bits(cstk, new_class_img, cvectors)
         else:
-            new_nf = mean_one_bits(cstk, new_class_img, cvectors[genesubset, :])
+            new_nf,background = mean_one_bits(cstk, new_class_img, cvectors[genesubset, :])
+#         background_intensity.append(background)
         hdata.add_and_save_data(new_nf, pos, z, 'nf')
         hdata.add_and_save_data(new_class_img, pos, z, 'cimg')
 #         except:
 #             hdata.remove_metadata_by_zindex(z)
 #             continue
+#     print(pos, 'Background Signal is', np.nanmean(background_intensity))
 
 def unix_find(pathin):
     """Return results similar to the Unix find command run without options
@@ -209,6 +221,7 @@ if __name__ == '__main__':
     seqfish_config = importlib.import_module(args.cword_config)
     bitmap = seqfish_config.bitmap
     normalized_gene_vectors = seqfish_config.norm_gene_codeword_vectors
+    normalized_all_gene_vectors = seqfish_config.norm_all_codeword_vectors
     
     poses = [i for i in os.listdir(cstk_path) if os.path.isdir(os.path.join(cstk_path, i))]
     if nrandom<len(poses):
@@ -224,15 +237,26 @@ if __name__ == '__main__':
     # Note preceding blocks and this can be noisy if restarted after crash etccc
     with multiprocessing.Pool(ncpu) as ppool:
         failed_positions = []
-        for i in range(niter):
-            print('N Positions left: ', len(hybedatas))
-            if i == 0:
-                cur_nf = np.array(np.nanmean([mean_nfs(hdata) for hdata in hybedatas], axis=0))
-                print('90th Percentile Normalization factors:', cur_nf, sep='\n')
-            else:
-                cur_nf = np.array(np.nanmean([mean_nfs(hdata) for hdata in hybedatas], axis=0))
-                cur_nf = np.array([10**2.6 if (i<10**2.6) or np.isnan(i) else i for i in cur_nf])
-                print(cur_nf)
-            sys.stdout.flush()
-            classify_pfunc = partial(classify_file, nfactor=cur_nf, nvectors=normalized_gene_vectors, csphere_radius=cword_radius)
+        if niter>0:
+            for i in range(niter):
+                print('N Positions left: ', len(hybedatas))
+                if i == 0:
+                    cur_nf = np.array(np.nanmean([mean_nfs(hdata) for hdata in hybedatas], axis=0))
+                    print('90th Percentile Normalization factors:', cur_nf, sep='\n')
+                else:
+                    cur_nf = np.array(np.nanmean([mean_nfs(hdata) for hdata in hybedatas], axis=0))
+                    cur_nf = np.array([10**2.6 if (i<10**2.6) or np.isnan(i) else i for i in cur_nf])
+                    print('Iteration number ', i+1)
+                    print(cur_nf)
+                sys.stdout.flush()
+                classify_pfunc = partial(classify_file, nfactor=cur_nf, nvectors=normalized_gene_vectors, csphere_radius=cword_radius)
+                results = ppool.map(classify_pfunc, hybedatas)
+        if args.classify !=0:
+            print('Starting final classification using all barcodes and all positions')
+            cur_nf = np.array(np.nanmean([mean_nfs(hdata) for hdata in hybedatas], axis=0))
+            cur_nf = np.array([10**2.6 if (i<10**2.6) or np.isnan(i) else i for i in cur_nf])
+            print(cur_nf)
+            hybedatas = [HybeData(os.path.join(cstk_path, i)) for i in poses]
+            classify_pfunc = partial(classify_file, nfactor=cur_nf, nvectors=normalized_all_gene_vectors, csphere_radius=cword_radius)
             results = ppool.map(classify_pfunc, hybedatas)
+        
