@@ -8,6 +8,7 @@ from skimage.external import tifffile
 import os
 import pandas as pd
 import numpy as np
+import itertools as it
 
 class SingleCellFishResults(object):
     def __init__(self, pth, ordered_gene_names):
@@ -17,12 +18,20 @@ class SingleCellFishResults(object):
         self.genes = ordered_gene_names
         self.codeword_idx = np.arange(len(self.genes))
         self.expression_table = pd.DataFrame(columns = ['gene_vector'])
+    @property
+    def cell_ids(self):
+        return self.expression_table.index
+    @property
+    def df(self):
+        return self.expression_table
+#     @property
+#     def data(self, )
     def add_spot_counts(self, cell_id, counts, overwrite=False):
         if isinstance(counts, dict):
             counts = [counts[i] if i in counts else 0 for i in self.codeword_idx]
         if not isinstance(cell_id, int):
             raise ValueError("Cell ids must be integers")
-        if cell_id in self.expression_table:
+        if cell_id in self.expression_table.index:
             if overwrite:
                 print('Warning overwriting existing data.')
                 self.expression_table.at[cell_id, 'gene_vector'] = counts
@@ -30,12 +39,33 @@ class SingleCellFishResults(object):
                 raise ValueError('Cell id exists already and overwrite is false.')
         else:
             self.expression_table.at[cell_id, 'gene_vector'] = counts
-    def add_data(self, cell_id, data_name, data):
+    def add_data(self, cell_id, data_name, data, dtype=float):
         if not isinstance(cell_id, int):
             raise ValueError("Cell ids must be integers")
-        if not cell_id in self.expression_table:
+        if not cell_id in self.expression_table.index:
             raise ValueError("Ancillary data only supported for existing cells.")
+        if not data_name in self.expression_table.columns:
+            self.expression_table[data_name] = it.repeat(np.nan, self.expression_table.shape[0])
+            
         self.expression_table.at[cell_id, data_name] = data
+    def __getitem__(self, ix):
+        if not ix in self.expression_table.index:
+            raise ValueError("Cell id not in dataset.")
+        else:
+            return self.expression_table.loc[ix]
+    def __iter__(self):
+        self.n_i = 0
+        return self
+    def __next__(self):
+        if self.n_i <= len(self.cellids):
+            result = self.expression_table.loc[self.cell_ids[self.n_i]]
+            self.n_i += 1
+            return result
+        else:
+            raise StopIteration
+        
+
+        
         
 
         
