@@ -13,6 +13,9 @@ import multiprocessing
 from skimage import io
 from metadata import Metadata
 from functools import partial
+from collections import Counter
+import matplotlib.pyplot as plt
+from scipy.stats import spearmanr
 from fish_results import HybeData
 from sklearn.cluster import DBSCAN
 from sklearn.preprocessing import normalize
@@ -30,19 +33,28 @@ if __name__ == '__main__':
     parser.add_argument("-n", "--niter", type=int, dest="niter", default=10, action='store', help="Number of iterations to perform.")
     parser.add_argument("-d", "--cword_dist", type=float, dest="cword_dist", default=0.5176, action='store', help="Threshold for distance between pixel and codeword for classification.")
     parser.add_argument("-c", "--classify", type=float, dest="classify", default=0, action='store', help="Do you want to run full classification on all positions with real and blank barcodes after iterative classification? (0 or 1).")
-    parser.add_argument("-f", "--fresh", type=float, dest="fresh", default=0, action='store', help="Do you want to calculate 95th percentile for the codestacks? (0 or 1).")
+    parser.add_argument("-f", "--fresh", type=float, dest="fresh", default=0, action='store', help="Do you want to calculate 95th percentile for the codestacks? (0 or the percentile).")
+    parser.add_argument("-zp", "--purge", type=float, dest="purge", default=0, action='store', help="Do you want to purge and concatenate spotcalls? (0 or 1).")
+    parser.add_argument("-s", "--system", type=str, dest="system", default='None', action='store', help="What dataset do you want to check correlation with?")
     args = parser.parse_args()
     
-def parse_classification_image(class_img, cstk, cvectors, genes, zindex, pix_thresh=0, ave_thresh=0):
-    #class_imgs = data['class_img']
-    #cstk = data['cstk']
+def parse_classification_image(class_img, cstk, cvectors, genes, zindex, pix_thresh=1, ave_thresh=0,spot_sum_thresh=0):
+    #ave_thresh=1000,spot_sum_thresh=2**13
+    # Calculating nf during parse for better control
+    # Set up a dictionary where each key is a bit
+    # Each bit will have a dictionary of spots
+    # Each Spot dict will have the mean spot intensities for all spots 
+    #     classified above spot_sum_thresh
+    nf_dict = {}
+    for bit in range(cvectors.shape[1]):
+        nf_dict[bit] = {}
+        for gene in genes:
+            nf_dict[bit][gene]=[]
     label2d = label((class_img+1).astype('uint16'), neighbors=8)
     properties = regionprops(label2d, (class_img+1).astype('uint16'))
     areas = []
     nclasses = []
-#     df_rows = []
     multiclass_sets = 0
-    #bit_values = defaultdict(list)
     gene_call_rows = []
     below_threshold_rows = []
     for prop in properties:
@@ -55,8 +67,6 @@ def parse_classification_image(class_img, cstk, cvectors, genes, zindex, pix_thr
             pdb.set_trace()
             continue
         elif not len(classes)==1:
-            #print('Labels need to be broken apart more than one classification found per label.', end='')
-            #print(classes)
             pdb.set_trace()
             multiclass_sets+=1
             continue
@@ -64,25 +74,47 @@ def parse_classification_image(class_img, cstk, cvectors, genes, zindex, pix_thr
             nclasses.append(len(classes))
             areas.append(prop.area)
         codeword_idx = classes[0]-1
+        gene = genes[codeword_idx]
         bits = np.where(cvectors[codeword_idx]>0)[0]
-        #spot_pixel_values = defaultdict(list)
+        spot_pixel_values = []
         spot_pixel_means = []
         spot_sums = 0
-        for x, y in coords:
-            cur_vals = cstk[x, y, bits]
-            spot_pixel_means.append(cur_vals)
-            for idx, b in enumerate(bits):
-                #spot_pixel_values[b].append(cur_vals[idx])
-                #bit_values[b].append(cur_vals[idx])
-                spot_sums += cur_vals[idx]
-        if (len(coords)>pix_thresh) and (np.mean(spot_pixel_means)>ave_thresh):
-            gene_call_rows.append([genes[codeword_idx], spot_sums, centroid,
-                            np.mean(spot_pixel_means), len(coords), codeword_idx])
-        else:
-            below_threshold_rows.append([genes[codeword_idx], spot_sums, centroid,
-                        np.mean(spot_pixel_means), len(coords), codeword_idx])
+        # Calculating the mean pixel intensities for each positive bit for a single spot
+        spot_nf = np.zeros(cvectors.shape[1])
+        for b in bits:
+            spot_bit_intensities = cstk[coords[:,0], coords[:,1], b]
+            spot_nf[b] = np.mean(spot_bit_intensities)
+            spot_pixel_values.append(spot_bit_intensities)
+        spot_sum = np.sum(spot_pixel_values)
+        spot_mean = np.mean(spot_pixel_values)
+        # If the spot is above spot_sum_thresh then add it to the gene spot list
+        # the hope is to filter out background here
+        if (len(coords)>pix_thresh) and (spot_mean>ave_thresh) and (spot_sum>spot_sum_thresh):
+            for b in bits:
+                nf_dict[b][gene].append(spot_nf[b])
+        # if a spot is above these thresholds add it to the final data frame
+#         if (len(coords)>pix_thresh) and (spot_mean>ave_thresh) and (spot_sum>spot_sum_thresh):
+        gene_call_rows.append([genes[codeword_idx], spot_sum, centroid,
+                        np.mean(spot_mean), len(coords), codeword_idx])
+#         else:
+#             below_threshold_rows.append([genes[codeword_idx], spot_sum, centroid,
+#                         np.mean(spot_mean), len(coords), codeword_idx])
     df = pd.DataFrame(gene_call_rows, columns=['gene', 'ssum', 'centroid', 'ave', 'npixels', 'cword_idx'])
-    return df
+    # Generate an empty nf to populate
+    nf = np.zeros(cvectors.shape[1])
+    if np.mean(df.ave)<1000: # Arbitrary thresh between real and fake
+        nf[nf==0]=np.nan
+        # Prevents bad postions from effecting normalization factors
+    else:
+        for b in nf_dict.keys():
+            bit_nf = []
+            # mean the spot intensities for a gene so that all genes have the same weight
+            # This is to prevent highly expressed false spots from skewing nf
+            for gene,gene_bit_spot_intensities in nf_dict[b].items():
+                if len(gene_bit_spot_intensities)>0:
+                    bit_nf.append(np.mean(gene_bit_spot_intensities))
+            nf[b] = np.mean(bit_nf)
+    return df,nf
 
 def multi_z_class_parse_wrapper(hdata, cvectors, genes, return_df = False):
 #     data = np.load(f)
@@ -141,6 +173,8 @@ def find_bitwise_error_rate(df, cvectors, norm_factor):
 
 
 def purge_zoverlap(df, z_dist = 2):
+    pos = df.posname.iloc[0]
+    print('Starting ',pos)
     zidxes = df.z.unique()
     for z_i in range(len(zidxes)-1):
         subdf = df[(df.z==zidxes[z_i]) | (df.z==zidxes[z_i+1])]
@@ -153,8 +187,8 @@ def purge_zoverlap(df, z_dist = 2):
         nomatches = []
         drop_list = []
         for idx, i in enumerate(yx):
-            if idx % 10000 == 0:
-                print(idx)
+#             if idx % 10000 == 0:
+#                 print(idx)
             if idx in skip_list:
                 continue
             m = tree.query_ball_point(i, 2)
@@ -175,60 +209,18 @@ def purge_zoverlap(df, z_dist = 2):
             droppers, keepers = zip(*drop_list)
             df.drop(index=subdf.iloc[list(droppers)].index,inplace=True)
     return df
-
-def purge_zoverlap_pool(inputs,z_dist = 2):
-    pos = inputs['posname']
-    print('Starting ',pos)
-    posdf = inputs['posdf']
-    zidxes = posdf.z.unique()
-    posdic = {}
-    for z_i in range(len(zidxes)-1):
-        subdf = posdf[(posdf.z==zidxes[z_i]) | (posdf.z==zidxes[z_i+1])]
-        yx = subdf.centroid.values
-        yx = np.stack(yx, axis=0)
-        tree = KDTree(yx)
-        dclust = DBSCAN(eps=2, min_samples=2)
-        dclust.fit(yx)
-        skip_list = set(np.where(dclust.labels_==-1)[0])
-        nomatches = []
-        drop_list = []
-        for idx, i in enumerate(yx):
-            if idx in skip_list:
-                continue
-            m = tree.query_ball_point(i, 2)
-            m = [j for j in m if j!=idx]
-
-            row_query = subdf.iloc[idx]
-            for j in m:
-                row_match = subdf.iloc[j]
-                if row_match.cword_idx!=row_query.cword_idx:
-                    continue
-
-                if row_match.npixels>=row_query.npixels:
-                    drop_list.append((idx, j))
-                else:
-                    drop_list.append((j, idx))
-                    break
-        if len(drop_list)>0:
-            droppers, keepers = zip(*drop_list)
-            index=subdf.iloc[list(droppers)].index
-            posdic[z_i] = index
-    return posdic,pos
                              
 def purge_wrapper(df,ncpu):
     poses = df.posname.unique()
-    dfdic = {}
+    pos_dfs = []
+    for pos in poses:
+        pos_dfs.append(df[df.posname==pos])
     with multiprocessing.Pool(ncpu) as ppool:
-        for result,pos in ppool.imap(purge_zoverlap_pool, [{'posname': pos, 'posdf': df[df.posname==pos]} for pos in poses]):
-            dfdic[pos] = result
-            print(pos,' Finished')
-        drop_list = []
-        for pos in dfdic.keys():
-            for z in dfdic[pos].keys():
-                droppers = dfdic[pos][z]
-                for spot in droppers:
-                    drop_list.append(spot)
-        purged_df = df.drop(index = list(dict.fromkeys(drop_list)),inplace=False)
+        purged_list = []
+        for result in ppool.imap(purge_zoverlap, pos_dfs):
+            purged_list.append(result)
+            print(result.posname.iloc[0],' Finished')
+    purged_df = pd.concat(purged_list,ignore_index=True)
     return purged_df
 
 def mean_nfs(hdata):
@@ -240,11 +232,11 @@ def mean_nfs(hdata):
     nfs = []
     for z in zindxes:
         try:
-            nf = hdata.load_data(pos, z, 'nf')
-            nfs.append(nf)
+            z = int(z)
         except:
-            print(pos)
             continue
+        nf = hdata.load_data(pos, z, 'nf')
+        nfs.append(nf)
     return np.nanmean(nfs, axis=0)        
 
 def cstk_mean_std(hdata):
@@ -269,7 +261,7 @@ def cstk_mean_std(hdata):
 #     means, stds = np.stack(means, axis=0), np.stack(stds, axis=0)
 #     return np.nanmean(means, axis=0), np.nanmean(stds, axis=0)
 
-def classify_codestack(cstk, norm_vector, codeword_vectors, csphere_radius=0.5176, intensity=300):
+def classify_codestack(cstk, mask, norm_vector, codeword_vectors, csphere_radius=0.5176, intensity=500):
     """
     Pixel based classification of codestack into gene_id pixels.
     
@@ -302,6 +294,7 @@ def classify_codestack(cstk, norm_vector, codeword_vectors, csphere_radius=0.517
         v = normstk[i, :, :]  # v is shape (2048, n_bits)
         # l2 norm note codeword_vectors should be prenormalized
         v = normalize(v, norm='l2')
+        v[mask[i,:]==False]=False
         # Distance from unit vector of codewords and candidate pixel codebits
         d = distance_matrix(codeword_vectors, v)
         # Check if distance to closest unit codevector is less than csphere thresh
@@ -315,7 +308,7 @@ def classify_codestack(cstk, norm_vector, codeword_vectors, csphere_radius=0.517
         class_img[i, :] = dvs
     return class_img
 
-def mean_one_bits(cstk, class_img, cvectors, spot_thresh=10**2.55,mean_min_spot_thresh = 485):#, nbits = 18):
+def mean_one_bits(cstk, class_img, cvectors, spot_thresh=10**2.55,mean_min_spot_thresh = 485):
     """
     Calculate average intensity of classified pixels per codebits.
     
@@ -356,12 +349,12 @@ def mean_one_bits(cstk, class_img, cvectors, spot_thresh=10**2.55,mean_min_spot_
             mean_bits.append(np.nan)
         else:
             mean_bits.append(robust_mean(bitvalues[i]))
-    return np.array(mean_bits),mean_background
+    return np.array(mean_bits)
 
-def egalitarian_mean_one_bits(cstk, class_img, cvectors, spot_thresh=10**2.55):
+def egalitarian_mean_one_bits(cstk, class_img, cvectors, spot_thresh=10**2.55,min_spot_count=10):
     cstk = cstk.astype('float32')
     nf = np.zeros(cvectors.shape[1])
-    #weights = np.zeros(cvectors.shape[1])
+
     for bit in range(cvectors.shape[1]):
         spots_intensity = []
         spotsum = 0
@@ -369,15 +362,15 @@ def egalitarian_mean_one_bits(cstk, class_img, cvectors, spot_thresh=10**2.55):
             if cvectors[gene,bit]>0:
                 spotsum = spotsum + len(class_img[class_img==gene])
                 x, y = np.where(class_img==gene)
-                if len(x) == 0:
+                if len(x) < min_spot_count:
                     continue
                 intensities = cstk[x, y, bit]
-                spots_intensity.append(intensities[intensities>spot_thresh])
-        try:
-
-            nf[bit]=np.mean(np.concatenate(spots_intensity).ravel())
-        except:
-
+                intensities = intensities[intensities>spot_thresh]
+                if len(intensities>0):
+                    spots_intensity.append(np.mean(intensities))
+        if len(spots_intensity)>0:
+            nf[bit]=np.mean(spots_intensity)
+        else:
             nf[bit] = np.nan
     return nf
 
@@ -386,33 +379,49 @@ def egalitarian_mean_one_bits(cstk, class_img, cvectors, spot_thresh=10**2.55):
 def robust_mean(x):
     return np.average(x, weights=np.ones_like(x) / len(x))
 
-def classify_file(hdata, nfactor, nvectors, genes, genesubset=None, intensity=300, csphere_radius=0.5176):
+def classify_file(hdata, nfactor, nvectors, genes, genesubset=None, intensity=0, csphere_radius=0.5176,mask_img=False):
     """
     Wrapper for classify_codestack. Can change this instead of function if 
     intermediate file storage ever changes.
     """
+    processing = pickle.load(open(os.path.join(hdata.base_path,'processing.pkl'),'rb'))
     pos = hdata.posname
-    cvectors = nvectors.copy()
-    np.place(cvectors, cvectors>0., 1.) # Hack to allow normalized vectors as single input
-    print(pos)
-    zindexes = hdata.metadata.zindex.unique()
-    nfs = {}
-    background_intensity = []
-    for z in zindexes:
-        cstk = hdata.load_data(pos, z, 'cstk')
-        new_class_img = classify_codestack(cstk, nfactor, nvectors, csphere_radius=csphere_radius,intensity=intensity)
-        df = parse_classification_image(new_class_img, cstk, nvectors, genes, z)
-        df['z'] = z
-        df['posname'] = pos
-        if genesubset is None:
-            new_nf = egalitarian_mean_one_bits(cstk, new_class_img, cvectors)
-        else:
-            new_nf = egalitarian_mean_one_bits(cstk, new_class_img, cvectors[genesubset, :])
+    if len(processing)==18:
+        cvectors = nvectors.copy()
+        np.place(cvectors, cvectors>0., 1.) # Hack to allow normalized vectors as single input
+        #print(pos)
+        nfs = {}
+        background_intensity = []
+        spotcall_list = []
+        for z in hdata.metadata.zindex.unique():
+            try:
+                z = int(z)
+            except:
+                continue
+            cstk = hdata.load_data(pos, z, 'cstk')
+            if mask_img==True:
+                mask = hdata.load_data(pos, z, 'cstk')
+            else:
+                mask = np.zeros_like(cstk[:,:,0])
+                mask = mask>-1
+            new_class_img = classify_codestack(cstk,mask, nfactor, nvectors, csphere_radius=csphere_radius,intensity=intensity)
+            df,new_nf = parse_classification_image(new_class_img, cstk, nvectors, genes, z)
+            df['z'] = z
+            df['posname'] = pos
+            spotcall_list.append(df)
+#             if genesubset is None:
+#                 new_nf = mean_one_bits(cstk, new_class_img, cvectors)
+#             else:
+#                 new_nf = mean_one_bits(cstk, new_class_img, cvectors[genesubset, :])
 
-        hdata.add_and_save_data(new_nf, pos, z, 'nf')
-        hdata.add_and_save_data(new_class_img, pos, z, 'cimg')
-        hdata.add_and_save_data(df,pos,z,'spotcalls')
-
+            hdata.add_and_save_data(new_nf, pos, z, 'nf')
+            hdata.add_and_save_data(new_class_img, pos, z, 'cimg')
+            hdata.add_and_save_data(df,pos,z,'spotcalls')
+        spotcalls = pd.concat(spotcall_list)
+        hdata.add_and_save_data(spotcalls,pos,'all','spotcalls')
+    else:
+        print(pos,'cstk isnt complete')
+        
 def unix_find(pathin):
     """Return results similar to the Unix find command run without options
     i.e. traverse a directory tree and return all the file paths
@@ -421,30 +430,137 @@ def unix_find(pathin):
     return [os.path.join(path, file)
             for (path, dirs, files) in os.walk(pathin)
             for file in files]
-    
+
 
 def calc_new_nf(hdata,percentile=95):
     pos = hdata.posname
     for z in hdata.metadata.zindex.unique():
         try:
-            cstk = hdata.load_data(pos,z,'cstk')
-            nf = np.percentile(cstk, percentile, axis=(0, 1))
-            hdata.add_and_save_data(nf,pos,z,'nf')
+            z = int(z)
         except:
-            print(pos,z,'Failed to calc new nf')
-            print(nf)
+            continue
+        cstk = hdata.load_data(pos,z,'cstk')
+        nf = np.percentile(cstk, percentile, axis=(0, 1))
+        if len(nf)>0:
+            hdata.add_and_save_data(nf,pos,z,'nf')
+        else:
+            print('nf len is 0')
+            print(pos,z)
+            nf = np.zeros(cstk.shape[2])
+            nf[nf==0]=float('NaN')
+            hdata.add_and_save_data(nf,pos,z,'nf')
+            #print(pos,z,nf)
     return None
 
+def find_finished_pos(poses,cstk_path,nbits):
+    finished_pos = []
+    for pos in poses:
+        try:
+            processing = pickle.load(open(os.path.join(cstk_path,pos,'processing.pkl'),'rb'))
+            if len(processing)==nbits: # Check to make sure position is finished
+                finished_pos.append(pos)
+        except:
+            continue
+    return finished_pos        
+    
+def random_subset(nrandom,finished_pos):
+    if nrandom<len(finished_pos):
+        subset = np.random.choice(finished_pos, size=nrandom, replace=False)
+        return subset 
+    else:
+        np.random.shuffle(finished_pos)
+        return finished_pos
+
+def find_subset(cstk_path,nrandom,nbits):
+    # Load Positions and Generate Random Subset
+    poses = [i for i in os.listdir(cstk_path) if os.path.isdir(os.path.join(cstk_path, i))]
+    finished_pos = find_finished_pos(poses,cstk_path,nbits)
+    subset = random_subset(nrandom,finished_pos)
+    return subset,poses
+        
+
+def spotcat(hybedatas):
+    spotcalls = []
+    for hdata in hybedatas:
+        print(hdata.posname)
+        for zindex in hdata.metadata.zindex.unique():
+            if ('hybe' in zindex) or ('all' in zindex):
+                continue
+            try:
+                spotcalls.append(hdata.load_data(hdata.posname,zindex,'spotcalls'))
+            except:
+                print(hdata.posname,zindex,' failed to load spotcalls')
+                continue
+    spotcalls = pd.concat(spotcalls,ignore_index=True)
+    return spotcalls
+
+def cornea_correlation(spotcalls,system,verbose=False, ave_thresh=0,npix_thresh=0,ssum_thresh=0):
+    if system == 'None':
+        return
+    elif system=='cornea':
+        f = '/bigstore/GeneralStorage/Zach/Cornea_RNAseq/Aligned/ReadsPerGene.xlsx'
+        ReadsPerGene = pd.read_excel(f)
+        ReadsPerGene.index = ReadsPerGene.GeneIDs
+        GeneList = pd.read_csv('/bigstore/GeneralStorage/Zach/MERFISH/Inflammatory/InflammationGeneList.csv')
+        GeneList.index = GeneList.Gene
+    elif system=='3t3':
+        f = '/bigstore/GeneralStorage/Evan/NFKB_MERFISH/Calibration_Set_Data/3T3_Calibration_Set/RNA_Seq_Data/Hoffmann_IFNAR_KO_3T3_TNF.txt'
+        ReadsPerGene = pd.read_csv(f,sep='\t')
+        gids = []
+        for gid in ReadsPerGene.Geneid:
+            gids.append(gid.split('.')[0])
+        ReadsPerGene.Geneid = gids
+        ReadsPerGene.index = gids
+        GeneList = pd.read_csv('/bigstore/GeneralStorage/Zach/MERFISH/Inflammatory/InflammationGeneList.csv')
+        GeneList.index = GeneList.Gene
+    else:
+        print('Unknown System')
+
+    counts = []
+    fpkms = []
+    from collections import defaultdict, Counter
+    FISH_Spots = Counter(spotcalls.gene)
+    for gn,cc in FISH_Spots.items():
+        if 'blank' in gn:
+            continue
+        else:
+            gid = GeneList.loc[gn]['Gene_ID']
+            if system=='cornea':
+                reads = ReadsPerGene.loc[gid].Unstranded
+            elif system=='3t3':
+                reads = ReadsPerGene.loc[gid]['IFNAR-TNF-1_tot.bam']
+            else:
+                print('Unknown System')
+            fpkm = reads/GeneList.loc[gn]['Length']
+            if isinstance(fpkm,np.float64):
+                if cc<2:
+                    continue
+                counts.append(cc)
+                fpkms.append(fpkm)
+    from scipy.stats import spearmanr
+    import matplotlib.pyplot as plt
+    plt.scatter(np.log10(fpkms),np.log10(counts),c=color,alpha=alpha,label=label)
+    print(spearmanr(fpkms,counts))
+    plt.suptitle('Untrimmed FPKM vs Spot Count')
+    plt.ylabel('log10 MERFISH Spot Count')
+    plt.xlabel('log10 RNAseq FPKM')
+    plt.legend()
+    
 if __name__ == '__main__':
     os.environ['MKL_NUM_THREADS'] = '4'
     os.environ['GOTO_NUM_THREADS'] = '4'
     os.environ['OMP_NUM_THREADS'] = '4'
-    print(args)
     cstk_path = args.cstk_path
     ncpu = args.ncpu
     niter = args.niter
     nrandom = args.nrandom
     cword_radius = args.cword_dist
+    system = args.system
+    classify = args.classify
+    fresh = args.fresh
+    purge = args.purge
+    print(args)
+    
     # Assuming these get imported during call below:
     # 1. bitmap
     # 2. bids, blanks, gids, cwords, gene_codeword_vectors, blank_codeword_vectors
@@ -457,56 +573,70 @@ if __name__ == '__main__':
     bitmap = seqfish_config.bitmap
     normalized_gene_vectors = seqfish_config.norm_gene_codeword_vectors
     normalized_all_gene_vectors = seqfish_config.norm_all_codeword_vectors
+    nbits = seqfish_config.nbits
     
-    poses = [i for i in os.listdir(cstk_path) if os.path.isdir(os.path.join(cstk_path, i))]
-    if nrandom<len(poses):
-        subset = np.random.choice(poses, size=nrandom, replace=False)
-    else:
-        np.random.shuffle(poses)
-        subset = poses
+    # Load Positions and Generate Random Subset
+    subset,poses = find_subset(cstk_path,nrandom,nbits)
+    pickle.dump(subset,open(os.path.join(cstk_path,'subset.pkl'),'wb'))
+#     subset = pickle.load(open(os.path.join(cstk_path,'subset.pkl'),'rb'))
     print(subset)
-    
     hybedatas = [HybeData(os.path.join(cstk_path, i)) for i in subset]
-    # Note preceding blocks and this can be noisy if restarted after crash etccc
-    # Note preceding blocks and this can be noisy if restarted after crash etccc
-    if niter > 0:
-        if args.fresh != 0:
-            # if redoing an iterative clasify you can calculate 95th percentile nf here
-            print('Calculating 95th Percentile nf')
+    
+    # if redoing an iterative clasify you can calculate 95th percentile nf here
+    if fresh != 0:
+            print('Calculating ',args.fresh,'th Percentile nf')
             with multiprocessing.Pool(ncpu) as ppool:
                 sys.stdout.flush()
-                results = ppool.map(calc_new_nf, hybedatas)
+                calc_new_nf_pfunc = partial(calc_new_nf,percentile=fresh)
+                results = ppool.map(calc_new_nf_pfunc, hybedatas)
                 ppool.close()
                 sys.stdout.flush()
+                
+    if niter > 0:
         for i in range(niter):
+            
             print('Number of Positions: ', len(hybedatas))
             print('Iteration number ', i+1)
             
             #calculate cumulative normalization factors
             cur_nf = np.array(np.nanmean([mean_nfs(hdata) for hdata in hybedatas], axis=0))
-            if i>0:
-                cur_nf = np.array([10**2.6 if (i<10**2.6) or np.isnan(i) else i for i in cur_nf])
+
+            if i>0: # not a fan of this solution ZEH
+                cur_nf = np.array([1000 if (i<1000) or np.isnan(i) else i for i in cur_nf])
             print(cur_nf)
+            
             # itterativly classify each position in pools of ncpu
             with multiprocessing.Pool(ncpu) as ppool:
                 sys.stdout.flush()
-                classify_pfunc = partial(classify_file, nfactor=cur_nf, nvectors=normalized_gene_vectors, genes=genes, csphere_radius=cword_radius)
+                classify_pfunc = partial(classify_file, nfactor=cur_nf, nvectors=normalized_gene_vectors, genes=genes, csphere_radius=cword_radius,mask_img=True)
                 results = ppool.map(classify_pfunc, hybedatas)
                 ppool.close()
                 sys.stdout.flush()
+            spotcalls = spotcat(hybedatas)
+            cornea_correlation(spotcalls,system=system)
+            pickle.dump(spotcalls,open(os.path.join(cstk_path,'spotcalls_prepurge.pkl'),'wb'))
+                
 
     # After all of your rounds of itterativly classifying now use those nf to classify all positions
-    if args.classify != 0:
+    if classify != 0: 
         print('Starting final classification using all barcodes and all positions')
         cur_nf = np.array(np.nanmean([mean_nfs(hdata) for hdata in hybedatas], axis=0))
-        cur_nf = np.array([10**2.6 if (i<10**2.6) or np.isnan(i) else i for i in cur_nf])
+        if niter > 0: # not a fan of this solution ZEH
+            cur_nf = np.array([1000 if (i<1000) or np.isnan(i) else i for i in cur_nf])
         print(cur_nf)
         poses = [i for i in os.listdir(cstk_path) if os.path.isdir(os.path.join(cstk_path, i))]
         hybedatas = [HybeData(os.path.join(cstk_path, i)) for i in poses]
         with multiprocessing.Pool(ncpu) as ppool:
             sys.stdout.flush()
-            classify_pfunc = partial(classify_file, nfactor=cur_nf, nvectors=normalized_gene_vectors, genes=genes, csphere_radius=cword_radius)
+            classify_pfunc = partial(classify_file, nfactor=cur_nf, nvectors=normalized_all_gene_vectors, genes=genes, csphere_radius=cword_radius,mask_img=False)
             results = ppool.map(classify_pfunc, hybedatas)
             ppool.close()
             sys.stdout.flush()
-
+        spotcalls = spotcat(hybedatas)
+        cornea_correlation(spotcalls)
+        pickle.dump(spotcalls,open(os.path.join(cstk_path,'spotcalls_prepurge.pkl'),'wb'))
+    # After Classification Now Purge overlapping spots
+    # Not robust yet
+    if purge != 0:
+        purged_df = purge_wrapper(spotcalls,ncpu)
+        pickle.dump(spotcalls,open(os.path.join(cstk_path,'spotcalls.pkl'),'wb'))
