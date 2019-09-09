@@ -95,8 +95,10 @@ class HybeData(pickle.Pickler):
                                                          ignore_index=True)
             except:
                 if 'hybedata.csv' in relative_fname:
+                    print(pos)
                     continue
                 elif 'processing.pkl' in relative_fname:
+                    print(pos)
                     continue
                 else:
                     print(pos, relative_fname)
@@ -113,10 +115,10 @@ class HybeData(pickle.Pickler):
                     temp = pandas.read_csv(os.path.join(self.base_path, subdir, self.file_name))
                     if len(temp) == 0:
                         # if the metadata is empty try and generate one from the file names
-                        temp = regenerate_metadata(self,verbose=False)
+                        temp = self.regenerate_metadata(verbose=False)
                     all_mds.append(temp)
                 except Exception as e:
-                    print(e)
+                    print(self.file_name, e)
                     continue
         if len(all_mds)==0:
             self.metadata = pandas.DataFrame(columns=['posname', 'zindex', 'dtype', 'filename'])
