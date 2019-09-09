@@ -22,7 +22,7 @@ if __name__ == '__main__':
     parser.add_argument("-p", "--nthreads", type=int, dest="ncpu", default=6, action='store', help="Number of cores to utilize (default 6).")
     parser.add_argument("-z", "--zindexes", type=int, nargs='*', action='store', dest="zindexes", default=-1)
     parser.add_argument("-b", "--beadprofile", type=str, action='store', dest="ave_bead_path",
-                        default='/bigstore/Images2018/Zach/FISH_Troubleshooting/Transverse_Second_2018Aug24/Analysis/results/Avg_Bead.pkl')
+                        default='/home/rfor10/repos/PySpots/hybescope_config/Avg_Bead.pkl')
     args = parser.parse_args()
     print(args)
 
@@ -130,6 +130,8 @@ if __name__ == '__main__':
     zindexes = args.zindexes
     ncpu = args.ncpu
     ave_bead_path = args.ave_bead_path
+    
+    print(zindexes, type(zindexes[0]))
     if not os.path.exists(analysis_path):
         os.makedirs(analysis_path)
     if md_path == 'None':
@@ -157,19 +159,14 @@ if __name__ == '__main__':
                            fnames_only=True, groupby='acq', 
                           hybe=hybe_list), 'posnames': pos} for pos in posnames]
     else:
-        fnames_dicts = [md.stkread(Channel='DeepBlue', Position=pos,
+        Input = [{'fname_dicts': md.stkread(Channel='DeepBlue', Position=pos,
                            fnames_only=True, groupby='acq', 
-                          hybe=hybe_list, Zindex=zindexes) for pos in posnames]
+                          hybe=hybe_list, Zindex=zindexes), 'posnames': pos} for pos in posnames]
+#     print(Input[0]['fname_dicts'])
     print('fnames loaded')
-#     Input = list()
-#     for i in range(len(fnames_dicts)):
-#         dictionary = defaultdict(dict)
-#         dictionary['fname_dicts'] = fnames_dicts[i]
-#         dictionary['posnames']= posnames[i]
-#         Input.append(dictionary)
         
-    Ave_Bead = pickle.load(open(ave_bead_path, 'rb'))
-    Ave_Bead = Ave_Bead[:,:, 3:] # Only use the top half so that i can match things near coverslip better
+#    Ave_Bead = pickle.load(open(ave_bead_path, 'rb'))
+#    Ave_Bead = Ave_Bead[:,:, 3:] # Only use the top half so that i can match things near coverslip better
     bead = numpy.zeros((7, 7, 5))
     bead[3, 3, 2] = 1
     bead = gaussian(bead, (1.5, 1.5, 0.85))
@@ -188,15 +185,4 @@ if __name__ == '__main__':
         for Bead_dict,Pos in p.imap(pfunc, Input, chunksize=1):
             bead_dicts[Pos] = Bead_dict
             pickle.dump(bead_dicts, open(os.path.join(results_path,'beads.pkl'), 'wb'))
-        
-#    with mp.Pool(ncpu) as ppool:
-#        ppool.starmap(add_bead_data, zip(fnames_dicts, posnames, repeat(Ave_Bead, len(posnames))))
-   #Combining beads to one file
-#    bead_dicts = defaultdict(dict)
-#    for files in os.listdir(bead_path):
-#        fi = os.path.join(bead_path,files)
-#        d = pickle.load(open(fi, 'rb'))
-#        d = {k.split('_')[0]:v for k, v in d.items()}
-#        bpth, pos = os.path.split(fi)
-#        bead_dicts[pos].update(d)
-#    pickle.dump(bead_dicts, open(os.path.join(results_path,'beads.pkl'), 'wb'))
+            print(Pos, 'done')
