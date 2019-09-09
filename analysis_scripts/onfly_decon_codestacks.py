@@ -18,12 +18,14 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 from flowdec import data as fd_data
 from flowdec import restoration as fd_restoration
 from tensorflow.python.client import device_lib
+#print(device_lib.list_local_devices())
+
 
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument("md_path", type=str, help="Path to root of imaging folder to initialize metadata.")
-    parser.add_argument("cword_config", type=str, help="Path to python file initializing the codewords and providing bitmap variable.")
+    parser.add_argument("cword_config", type=str, help="Name of python module defining bitmap information.")
     parser.add_argument("tforms_path", type=str, help="Path pickle dictionary of tforms per position name.")
     parser.add_argument("out_path", type=str, help="Path to save output.")
     parser.add_argument("-p", "--nthreads", type=int, dest="ncpu", default=8, action='store', help="Number of cores to utilize (default 4).")
@@ -31,14 +33,16 @@ if __name__ == '__main__':
     parser.add_argument("-s", "--zstart", type=int, dest="zstart", default=4, action='store', help="Start making max projections centered at zstart.")
     parser.add_argument("-m", "--zmax", type=int, dest="zmax", default=15, action='store', help="End making max projections centered at zmax.")
     parser.add_argument("-i", "--zskip", type=int, dest="zskip", default=4, action='store', help="Skip this many z-slices between centers of max projections.")
+    parser.add_argument("--smooth", "--smooth", type=float, dest="smooth_kernel", default=1.2, action='store', help="Skip this many z-slices between centers of max projections.")
     parser.add_argument("--decon_iters", type=int, dest="niter", default=25, action='store', help="Skip this many z-slices between centers of max projections.")
     parser.add_argument("--decon_gpu", type=int, dest="gpu", default=0, action='store', help="Skip this many z-slices between centers of max projections.")
     parser.add_argument("--flatfield", type=str, dest="flatfield_path", default='/home/rfor10/repos/pyspots/hybescope_config/flatfields_october2018.pkl', action='store', help="Path to dictionary with flatfield matrix for each channel.")
 
     args = parser.parse_args()
     
-def hdata_multi_z_pseudo_maxprjZ_wrapper(pos_hdata, posname, tforms_xy, tforms_z, md, reg_ref='hybe1', zstart=5, k=2, zskip=4, zmax=26, ndecon_iter = 20, nf_init_qtile=95):
-    global image_size, bitmap, out_path, flatfield_dict
+def hdata_multi_z_pseudo_maxprjZ_wrapper(pos_hdata, posname, tforms_xy, tforms_z, md, bitmap, gpu_algo, reg_ref='hybe1', zstart=5, k=2, zskip=4, zmax=26, ndecon_iter = 20, nf_init_qtile=95, prj_func='mean', smooth_kernel=1.2):
+    global image_size, out_path, flatfield_dict, use_gpu
+    use_gpu = 1
     tforms_z = {k: int(np.round(np.mean(v))) for k, v in tforms_z.items()}
     tforms_z[reg_ref] = 0
     tforms_xy[reg_ref] = (0,0)
@@ -70,11 +74,19 @@ def hdata_multi_z_pseudo_maxprjZ_wrapper(pos_hdata, posname, tforms_xy, tforms_z
             t_xys = []
             for bitmap_idx in completed_not_processed_idx:
                 seq, hybe, chan = bitmap[bitmap_idx]
+                if hybe=='hybe9':
+                    continue
                 t_z = tforms_z[hybe]
                 t_xy = tforms_xy[hybe]
                 t_xys.append(t_xy)
-                cbit = md.stkread(Channel=chan, hybe=hybe, Position=posname, Zindex=list(range(z_i-t_z-k, z_i-t_z+k+1))).max(axis=2) # z info not preprocessed?
-                cbit = dogonvole(cbit, psf_map[chan], niter=ndecon_iter)
+                cbit = md.stkread(Channel=chan, hybe=hybe, Position=posname, Zindex=list(range(z_i-t_z-k, z_i-t_z+k+1))) # z info not preprocessed?
+                if prj_func == 'max':
+                    cbit = cbit.max(axis=2)
+                elif prj_func == 'mean':
+                    cbit = cbit.mean(axis=2)
+#                 else:
+#                     raise ValueError("prj_func type not recognized as implemented."
+                cbit = dogonvole(cbit, psf_map[chan], gpu_algo, niter=ndecon_iter, blur=(smooth_kernel, smooth_kernel, 0))
 #                 cbit = np.divide(cbit, flatfield_dict[channels[bitmap_idx]])
 #                 cbit = tform_image(cbit, chan, t_xy, niter=niter)
                 codebits.append(cbit)
@@ -156,7 +168,7 @@ def interp_warp(img, x, y):
     nimg = i2(range(img.shape[0]), range(img.shape[1]))
     return nimg
 
-def dogonvole(image, psf, kernel=(2., 2., 0.), blur=(1.2, 1.2, 0.), niter=20):
+def dogonvole(image, psf, gpu_algorithm, kernel=(2., 2., 0.), blur=(1.2, 1.2, 0.), niter=20):
     """
     Perform deconvolution and difference of gaussian processing.
 
@@ -173,7 +185,8 @@ def dogonvole(image, psf, kernel=(2., 2., 0.), blur=(1.2, 1.2, 0.), niter=20):
     image : ndarray
         Processed image same shape as image input.
     """
-    global hot_pixels, use_gpu, gpu_algorithm
+    global hot_pixels
+    use_gpu = 1
     if not psf.sum() == 1.:
         raise ValueError("psf must be normalized so it sums to 1")
     image = image.astype('float32')
@@ -211,22 +224,27 @@ if __name__=='__main__':
     zskip = args.zskip
     zmax = args.zmax
     out_path = args.out_path
-    use_gpu = args.gpu
+#    use_gpu = args.gpu
     ncpu = args.ncpu
-#    flatfield_path = args.flatfield_path
-#    flatfield_dict = pickle.load(open(flatfield_path, 'rb'))
+    tforms_path = args.tforms_path
+    cword_config = args.cword_config
+    smooth_kernel = args.smooth_kernel
+    print(args)
+    use_gpu = 1
     if use_gpu == 1:
         print(device_lib.list_local_devices())
         gpu_algorithm = fd_restoration.RichardsonLucyDeconvolver(2).initialize()
-#         assert(ncpu==1, 'If using GPU only use single-threaded to prevent conflicts with GPU usage.')
+        #assert(ncpu==1, 'If using GPU only use single-threaded to prevent conflicts with GPU usage.')
+    else:
+        gpu_algorithm = None
     if not os.path.exists(out_path):
         os.makedirs(out_path)
-    print(args)
     md = Metadata(md_path)
-    seqfish_config = importlib.import_module(args.cword_config)
+    seqfish_config = importlib.import_module(cword_config)
     bitmap = seqfish_config.bitmap
-    pfunc = partial(hdata_multi_z_pseudo_maxprjZ_wrapper, md=md, k=args.k, zstart=args.zstart, zskip=args.zskip, zmax=args.zmax, ndecon_iter=niter)
-    good_positions = pickle.load(open(args.tforms_path, 'rb'))['good']
+    pfunc = partial(hdata_multi_z_pseudo_maxprjZ_wrapper, gpu_algo=gpu_algorithm, md=md, k=k, zstart=zstart, zskip=zskip,
+                zmax=zmax, ndecon_iter=niter, bitmap=bitmap, smooth_kernel=smooth_kernel)
+    good_positions = pickle.load(open(tforms_path, 'rb'))['good']
     func_inputs = []
     for p, t in good_positions.items():
         tforms_xyz = {k: (v[0][0], v[0][1], int(np.round(np.mean(v[0][2])))) for k, v in t.items()}
