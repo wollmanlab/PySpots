@@ -170,8 +170,17 @@ def photobleach_qc(md,path=True,pos=False):
     plt.legend()
     plt.show()
 
-def img2stage_coordinates(spotcalls,md,path=False,pixelsize=0.109,cameradirection=[1,1],verbose=False):
-    if path==True:
+def img2stage_coordinates(spotcalls,md,pixelsize=0.109,cameradirection=[-1,1],verbose=False):
+    """
+    RKF Comments - md and path can be combined. if md isinstance(str) then load metadata else 
+    assert it isinstance(Metadata) and continue
+    
+    camera pixels is hardcoded
+    
+    CoordX and CoordY are not descriptive enough names to know difference between them and 
+    other x,y. Candidate suggestion either stageX/Y or globalXY
+    """
+    if isinstance(md, str):
             from metadata import Metadata
             md = Metadata(md)
     X = []
@@ -181,10 +190,13 @@ def img2stage_coordinates(spotcalls,md,path=False,pixelsize=0.109,cameradirectio
             print(pos)
         coordX,coordY = md.image_table[md.image_table.Position==pos].XY.iloc[0]
         pos_temp = spotcalls[spotcalls.posname==pos]
-        pos_centroid = pos_temp.centroid
-        for xy in pos_centroid:
-            rx = xy[1]-2048
-            ry = xy[0]#-2048
+#         pos_centroid = pos_temp.centroid
+#         centroids = np.stack(pos_temp.centroid, axis=0)
+#         centroids = centroids*pixelsize*cameradirection*(coordY, coordX)
+        # The below for loop can be replaced with a numpy broadcasted operation
+        for yx in pos_centroid:
+            rx = yx[1]
+            ry = yx[0]
             x = rx*pixelsize*cameradirection[0]+coordX
             y = ry*pixelsize*cameradirection[1]+coordY
             X.append(x)

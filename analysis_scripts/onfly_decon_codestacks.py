@@ -42,19 +42,23 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
     
-def hdata_multi_z_pseudo_maxprjZ_wrapper(pos_hdata, posname, tforms_xy, tforms_z, md, reg_ref='hybe1', zstart=5, k=2, zskip=4, zmax=26, ndecon_iter = 10, nf_init_qtile=95,kernel=(2., 2., 0.), blur=(1.2, 1.2, 0.), prj_func='mean'):
-    global image_size, bitmap, out_path, flatfield_dict,global_kernel, global_blur,psf_map
+def hdata_multi_z_pseudo_maxprjZ_wrapper(pos_hdata, posname, tforms_xy, tforms_z, md, bitmap, reg_ref='hybe1',
+                                         zstart=5, k=2, zskip=4, zmax=26, ndecon_iter = 10, nf_init_qtile=95,
+                                         prj_func='mean', use_gpu=1):
+    global image_size, out_path, flatfield_dict, global_kernel,global_blur, psf_map
     NoneType = type(None)
     tforms_z = {k: int(np.round(np.mean(v))) for k, v in tforms_z.items()}
     tforms_z[reg_ref] = 0
     tforms_xy[reg_ref] = (0,0)
     seqs, hybes, channels = zip(*bitmap)
+    highest_z = md.image_table.Zindex.max()
 #     psf_map = {'Orange': orange_psf, 'FarRed': farred_psf, 'Green': green_psf}
     hybes, channels = np.array(hybes), np.array(channels)
     completed_idx = np.array([i for i in range(len(hybes)) if hybes[i] in tforms_xy])
     if not os.path.exists(os.path.join(pos_hdata.base_path, 'processing.pkl')):
         completed_not_processed_idx = completed_idx
     else:
+        print('Some done')
         doneso = pickle.load(open(os.path.join(pos_hdata.base_path, 'processing.pkl'), 'rb'))
         completed_not_processed_idx = np.array([i for i in completed_idx if i not in doneso])
     if len(completed_not_processed_idx) == 0:
@@ -63,6 +67,7 @@ def hdata_multi_z_pseudo_maxprjZ_wrapper(pos_hdata, posname, tforms_xy, tforms_z
     print('\n','Imaging completed: ', completed_idx)
     pool = multiprocessing.Pool(18)
     for z_i in list(range(zstart, zmax, zskip)):
+        print(z_i)
         try:
             cstk = pos_hdata.load_data(posname, z_i, 'cstk')
             if isinstance(cstk,NoneType):
@@ -77,12 +82,17 @@ def hdata_multi_z_pseudo_maxprjZ_wrapper(pos_hdata, posname, tforms_xy, tforms_z
             t_xys = []
             for bitmap_idx in completed_not_processed_idx:
                 seq, hybe, chan = bitmap[bitmap_idx]
-                if hybe=='hybe9':
-                    continue
                 t_z = tforms_z[hybe]
                 t_xy = tforms_xy[hybe]
                 t_xys.append(t_xy)
-                cbit = md.stkread(Channel=chan, hybe=hybe, Position=posname, Zindex=list(range(z_i-t_z-k, z_i-t_z+k+1))) # z info not preprocessed?
+                if any(np.array(list(range(z_i-t_z-k, z_i-t_z+k+1)))<=highest_z):
+                    local_z = np.array(list(range(z_i-t_z-k, z_i-t_z+k+1)))
+                    local_z = local_z[np.where(local_z<=highest_z)[0]].tolist()
+                    cbit = md.stkread(Channel=chan, hybe=hybe, Position=posname, Zindex=local_z) # z info not preprocessed?
+                    cbit = dogonvole(cbit, psf_map[chan], gpu_algorithm, niter=ndecon_iter,kernel=global_kernel, blur=global_blur, use_gpu=use_gpu)
+                else:
+                    print('No images at that Zrange')
+                    cbit = np.ones((2048, 2048, 3)) # hardcoding bad!
                 if prj_func == 'max':
                     cbit = cbit.max(axis=2)
                 elif prj_func == 'mean':
@@ -92,7 +102,7 @@ def hdata_multi_z_pseudo_maxprjZ_wrapper(pos_hdata, posname, tforms_xy, tforms_z
 #                 cbit = dogonvole(cbit, psf_map[chan], gpu_algo, niter=ndecon_iter, blur=(smooth_kernel, smooth_kernel, 0)) # MERGE Conflict 9/9/19
 #                 cbit = np.divide(cbit, flatfield_dict[channels[bitmap_idx]])
 #                 cbit = tform_image(cbit, chan, t_xy, niter=niter)
-                cbit = dogonvole(cbit, psf_map[chan], niter=ndecon_iter,kernel=global_kernel, blur=global_blur)
+                
                 codebits.append(cbit)
             hnames= hybes[completed_not_processed_idx]
             channels_subset = channels[completed_not_processed_idx]
@@ -109,10 +119,17 @@ def hdata_multi_z_pseudo_maxprjZ_wrapper(pos_hdata, posname, tforms_xy, tforms_z
         except Exception as e:
             print(posname,z_i,'Failed')
             print(e)
+            print(chan, hybe, posname, list(range(z_i-t_z-k, z_i-t_z+k+1)))
+            pdb.set_trace()
+            return 'Failed'
     try:
+        if not os.path.exists(pos_hdata.base_path):
+            print('Warning: had to create directory structure so the loop of Z probably did not work.')
+            os.makedirs(pos_hdata.base_path)
         pickle.dump(set(completed_idx), open(os.path.join(pos_hdata.base_path, 'processing.pkl'), 'wb'))
-    except:
-        (posname,'Entire Position Failed')
+    except Exception as e:
+        print(posname,'Entire Position Failed')
+        print(e)
     pool.close()
     sys.stdout.flush()
     return 'Passed'
@@ -179,7 +196,7 @@ def interp_warp(img, x, y):
     nimg = i2(range(img.shape[0]), range(img.shape[1]))
     return nimg
 
-def dogonvole(image, psf, kernel=(2., 2., 0.), blur=(0.9, 0.9, 0.), niter=10):
+def dogonvole(image, psf, gpu_algorithm, kernel=(2., 2., 0.), blur=(0.9, 0.9, 0.), niter=10, use_gpu=1):
     """
     Perform deconvolution and difference of gaussian processing.
 
@@ -196,7 +213,7 @@ def dogonvole(image, psf, kernel=(2., 2., 0.), blur=(0.9, 0.9, 0.), niter=10):
     image : ndarray
         Processed image same shape as image input.
     """
-    global hot_pixels, use_gpu, gpu_algorithm
+    global hot_pixels
 
     if not psf.sum() == 1.:
         raise ValueError("psf must be normalized so it sums to 1")
@@ -247,6 +264,7 @@ if __name__=='__main__':
     global_kernel = (args.kernel_sigma,args.kernel_sigma,0)
     global_blur = (args.blur_sigma,args.blur_sigma,0)
     psf_map = {'Orange': orange_psf, 'FarRed': farred_psf, 'Green': green_psf}
+    seqfish_config = importlib.import_module(cword_config)
     nbits = seqfish_config.nbits
     print(args)
     
@@ -262,10 +280,9 @@ if __name__=='__main__':
         os.makedirs(out_path)
     
     md = Metadata(md_path)
-    seqfish_config = importlib.import_module(cword_config)
     bitmap = seqfish_config.bitmap
     pfunc = partial(hdata_multi_z_pseudo_maxprjZ_wrapper, gpu_algo=gpu_algorithm, md=md, k=k, zstart=zstart, zskip=zskip,
-                zmax=zmax, ndecon_iter=niter, bitmap=bitmap, smooth_kernel=smooth_kernel)
+                zmax=zmax, ndecon_iter=niter, bitmap=bitmap)
     good_positions = pickle.load(open(tforms_path, 'rb'))['good']
     func_inputs = []
     for pos,tform in good_positions.items():

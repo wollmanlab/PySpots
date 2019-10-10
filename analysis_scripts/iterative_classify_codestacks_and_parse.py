@@ -406,6 +406,7 @@ def classify_file(hdata, nfactor, nvectors, genes, genesubset=None, intensity=0,
                 mask = mask>-1
             new_class_img = classify_codestack(cstk,mask, nfactor, nvectors, csphere_radius=csphere_radius,intensity=intensity)
             df,new_nf = parse_classification_image(new_class_img, cstk, nvectors, genes, z)
+            print(new_nf)
             df['z'] = z
             df['posname'] = pos
             spotcall_list.append(df)

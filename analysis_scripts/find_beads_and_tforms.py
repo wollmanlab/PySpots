@@ -148,6 +148,7 @@ def ensembl_bead_reg(bead_dict,pos, reg_ref='hybe1', max_dist=200,
     for h, beadarray in bead_dict.items():
         if len(beadarray)<dbscan_min_samples:
             tform_dict[h] = 'Not enough bead pairs found.'
+            print(len(beadarray))
             continue
         beadarray = np.stack(beadarray, axis=0)
         t_est = []
