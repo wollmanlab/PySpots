@@ -173,5 +173,31 @@ class RegistrationContainer(object):
 #             else:
 #                 beads_status['incomplete'][hybe] = 'not implemented'
         
-        
+def from_goodBad_format_to_container_objects(tforms):
+    all_tforms = {}
+    residuals = {}
+    matched_bead_counts = {}
+    for p, t in tforms['good'].items():
+        all_tforms[p] = {h: t[0] for h, t in t.items()}
+        residuals[p] = {h: t[1] for h, t in t.items()}
+        matched_bead_counts[p] = {h: t[2] for h, t in t.items()}
+    for p, t in tforms['bad'].items():
+        new_t = {}
+        new_r = {}
+        new_bc = {}
+        for h, t in t.items():
+            if isinstance(t[0], str):
+                new_t[h] = (np.nan, np.nan, np.nan)
+                new_r[h] = np.nan
+                new_bc[h] = np.nan
+            else:
+                new_t[h] = t[0]
+                new_r[h] = t[1]
+                new_bc[h] = t[2]
+        all_tforms[p] = new_t
+        residuals[p] = new_r
+        matched_bead_counts[p] = new_bc
+    return all_tforms, residuals, matched_bead_counts
+
+
     
