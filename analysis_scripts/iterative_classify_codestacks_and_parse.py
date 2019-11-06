@@ -102,18 +102,18 @@ def parse_classification_image(class_img, cstk, cvectors, genes, zindex, pix_thr
     df = pd.DataFrame(gene_call_rows, columns=['gene', 'ssum', 'centroid', 'ave', 'npixels', 'cword_idx'])
     # Generate an empty nf to populate
     nf = np.zeros(cvectors.shape[1])
-    if np.mean(df.ave)<1000: # Arbitrary thresh between real and fake
-        nf[nf==0]=np.nan
+#     if np.mean(df.ave)<1000: # Arbitrary thresh between real and fake
+#         nf[nf==0]=np.nan
         # Prevents bad postions from effecting normalization factors
-    else:
-        for b in nf_dict.keys():
-            bit_nf = []
-            # mean the spot intensities for a gene so that all genes have the same weight
-            # This is to prevent highly expressed false spots from skewing nf
-            for gene,gene_bit_spot_intensities in nf_dict[b].items():
-                if len(gene_bit_spot_intensities)>0:
-                    bit_nf.append(np.mean(gene_bit_spot_intensities))
-            nf[b] = np.mean(bit_nf)
+#     else:
+    for b in nf_dict.keys():
+        bit_nf = []
+        # mean the spot intensities for a gene so that all genes have the same weight
+        # This is to prevent highly expressed false spots from skewing nf
+        for gene,gene_bit_spot_intensities in nf_dict[b].items():
+            if len(gene_bit_spot_intensities)>0:
+                bit_nf.append(np.nanmean(gene_bit_spot_intensities))
+        nf[b] = np.nanmean(bit_nf)
     return df,nf
 
 def multi_z_class_parse_wrapper(hdata, cvectors, genes, return_df = False):
@@ -284,6 +284,8 @@ def classify_codestack(cstk, mask, norm_vector, codeword_vectors, csphere_radius
     cstk = cstk.copy()
     cstk = cstk.astype('float32')
     cstk = np.nan_to_num(cstk)
+    ptiles = np.percentile(cstk, 75, axis=(0,1))
+    cstk = np.subtract(cstk, ptiles[np.newaxis, np.newaxis, :])
     np.place(cstk, cstk<=0, 0.01)
     # Normalize for intensity difference between codebits
     normstk = np.divide(cstk, norm_vector)
@@ -602,8 +604,8 @@ if __name__ == '__main__':
             #calculate cumulative normalization factors
             cur_nf = np.array(np.nanmean([mean_nfs(hdata) for hdata in hybedatas], axis=0))
 
-            if i>0: # not a fan of this solution ZEH
-                cur_nf = np.array([1000 if (i<1000) or np.isnan(i) else i for i in cur_nf])
+#             if i>0: # not a fan of this solution ZEH
+#                 cur_nf = np.array([1000 if (i<1000) or np.isnan(i) else i for i in cur_nf])
             print(cur_nf)
             
             # itterativly classify each position in pools of ncpu

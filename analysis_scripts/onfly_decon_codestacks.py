@@ -85,7 +85,7 @@ def hdata_multi_z_pseudo_maxprjZ_wrapper(pos_hdata, posname, tforms_xy, tforms_z
                 t_z = tforms_z[hybe]
                 t_xy = tforms_xy[hybe]
                 t_xys.append(t_xy)
-                if any(np.array(list(range(z_i-t_z-k, z_i-t_z+k+1)))<=highest_z):
+                if any(np.array(list(range(z_i-t_z-k, z_i-t_z+k+1)))<=highest_z) or any(np.array(list(range(z_i-t_z-k, z_i-t_z+k+1)))>=0):
                     local_z = np.array(list(range(z_i-t_z-k, z_i-t_z+k+1)))
                     local_z = local_z[np.where(local_z<=highest_z)[0]].tolist()
                     cbit = md.stkread(Channel=chan, hybe=hybe, Position=posname, Zindex=local_z) # z info not preprocessed?
