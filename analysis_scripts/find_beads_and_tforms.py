@@ -301,7 +301,7 @@ def load_fnames(md_path,zindexes):
     else:
         Input = [ {'fname_dicts': md.stkread(Channel='DeepBlue', Position=pos,
                            fnames_only=True, groupby='acq', 
-                          hybe=hybe_list, Zindex=['range',1,zindexes]), 'posnames': pos} for pos in random_posnames]
+                          hybe=hybe_list, Zindex=list(range(8, 25))), 'posnames': pos} for pos in random_posnames]
 #         Input = []
 #         for pos in random_posnames:
 #             pos_df = {}
