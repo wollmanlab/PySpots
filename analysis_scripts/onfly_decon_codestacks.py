@@ -222,7 +222,7 @@ def dogonvole(image, psf, gpu_algorithm, kernel=(2., 2., 0.), blur=(0.9, 0.9, 0.
     for y, x in hot_pixels:
         image[y, x] = imin;
         
-    img_bg = gaussian(image, kernel[:len(image.shape)], preserve_range=True)
+    img_bg = gaussian(image, kernel[:len(image.shape)], preserve_range=True, multichannel=False)
     image = numpy.subtract(image, img_bg)
     numpy.place(image, image<0, 1./2**16)
     image = image.astype('uint16')
@@ -239,7 +239,7 @@ def dogonvole(image, psf, gpu_algorithm, kernel=(2., 2., 0.), blur=(0.9, 0.9, 0.
             image = restoration.richardson_lucy(image, psf, niter, clip=False)
     else:
         raise ValueError('image is not a supported dimensionality.')
-    image = gaussian(image, blur[:len(image.shape)], preserve_range=True)
+    image = gaussian(image, blur[:len(image.shape)], preserve_range=True, multichannel=False)
     return image
 
 def covert_tforms(tform):
@@ -294,7 +294,7 @@ if __name__=='__main__':
         txy,tzz = covert_tforms(tform)
         hdata = HybeData(os.path.join(out_path, pos))
         if use_gpu!=0 or ncpu==1:
-            hdata_multi_z_pseudo_maxprjZ_wrapper(hdata, pos, txy, tzz, md, 
+            hdata_multi_z_pseudo_maxprjZ_wrapper(hdata, pos, txy, tzz, md, bitmap,
                                                  zstart=zstart, k=k, zskip=zskip,
                                                  zmax=zmax, ndecon_iter=niter)
         else:
