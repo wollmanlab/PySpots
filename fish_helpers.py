@@ -10,10 +10,15 @@ from scipy import stats
 import seaborn as sns
 from scipy.stats import spearmanr
 from skimage.transform import resize
+from skimage.measure import regionprops
 from math import sqrt
 import importlib
 import multiprocessing
 import sys
+plt.style.use(['dark_background'])
+from ipypb import ipb
+import tqdm
+import random
 
 def ReadsPerGene_fun(system='cornea'):
     if system=='cornea':
@@ -170,7 +175,7 @@ def photobleach_qc(md,path=True,pos=False):
     plt.legend()
     plt.show()
 
-def img2stage_coordinates(spotcalls,md,pixelsize=0.109,cameradirection=[-1,1],verbose=False):
+def img2stage_coordinates(spotcalls,md,pixelsize=0.109,cameradirection=[1,1]):
     """
     RKF Comments - md and path can be combined. if md isinstance(str) then load metadata else 
     assert it isinstance(Metadata) and continue
@@ -181,26 +186,16 @@ def img2stage_coordinates(spotcalls,md,pixelsize=0.109,cameradirection=[-1,1],ve
     other x,y. Candidate suggestion either stageX/Y or globalXY
     """
     if isinstance(md, str):
-            from metadata import Metadata
-            md = Metadata(md)
+        md = Metadata(md)
     X = []
     Y = []
-    for pos in spotcalls.posname.unique():
-        if verbose==True:
-            print(pos)
+    for pos in tqdm(spotcalls.posname.unique()):
         coordX,coordY = md.image_table[md.image_table.Position==pos].XY.iloc[0]
         pos_temp = spotcalls[spotcalls.posname==pos]
-#         pos_centroid = pos_temp.centroid
-#         centroids = np.stack(pos_temp.centroid, axis=0)
-#         centroids = centroids*pixelsize*cameradirection*(coordY, coordX)
-        # The below for loop can be replaced with a numpy broadcasted operation
-        for yx in pos_centroid:
-            rx = yx[1]
-            ry = yx[0]
-            x = rx*pixelsize*cameradirection[0]+coordX
-            y = ry*pixelsize*cameradirection[1]+coordY
-            X.append(x)
-            Y.append(y)
+        centroids = np.stack(pos_temp.centroid, axis=0)
+        centroids = centroids*pixelsize*cameradirection+(coordY, coordX)
+        X.extend(list(centroids[:,0]))
+        Y.extend(list(centroids[:,1]))
     spotcalls['CoordX'] = X
     spotcalls['CoordY'] = Y
     return spotcalls
