@@ -17,7 +17,7 @@ import multiprocessing
 import sys
 plt.style.use(['dark_background'])
 from ipypb import ipb
-import tqdm
+from tqdm import tqdm
 import random
 
 def ReadsPerGene_fun(system='cornea'):

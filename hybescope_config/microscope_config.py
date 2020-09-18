@@ -35,6 +35,8 @@ yshift_o = chromatic_dict['Orange']['y']
 xshift_db = chromatic_dict['DeepBlue']['x']
 yshift_db = chromatic_dict['DeepBlue']['y']
 
+
+
 farred_psf = imread(os.path.join(base_pth, 'farred_psf_fit_250nmZ_63x.tif'))
 farred_psf = farred_psf[25, 8:17, 8:17]
 farred_psf = farred_psf/farred_psf.sum()
@@ -44,3 +46,16 @@ green_psf = green_psf/green_psf.sum()
 orange_psf = imread(os.path.join(base_pth, 'orange_psf_fit_250nmZ_63x.tif'))
 orange_psf = orange_psf[25,  5:14, 5:14]
 orange_psf = orange_psf/orange_psf.sum()
+
+farred_psf_3d = imread(os.path.join(base_pth, 'farred_psf_fit_250nmZ_63x.tif'))
+farred_psf_3d = farred_psf_3d[20:29, 8:17, 8:17]
+farred_psf_3d = farred_psf_3d/farred_psf_3d.sum()
+green_psf_3d = imread(os.path.join(base_pth, 'green_psf_fit_250nmZ_63x.tif'))
+green_psf_3d = green_psf_3d[20:29, 5:14, 5:14]
+green_psf_3d = green_psf_3d/green_psf_3d.sum()
+orange_psf_3d = imread(os.path.join(base_pth, 'orange_psf_fit_250nmZ_63x.tif'))
+orange_psf_3d = orange_psf_3d[20:29,  5:14, 5:14]
+orange_psf_3d = orange_psf_3d/orange_psf_3d.sum()
+
+psf_dict = {'FarRed':farred_psf,'Orange':orange_psf,'Green':green_psf}
+psf_dict_3d = {'FarRed':farred_psf_3d,'Orange':orange_psf_3d,'Green':green_psf_3d}

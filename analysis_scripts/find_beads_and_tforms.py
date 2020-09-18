@@ -3,6 +3,7 @@ import os
 import scipy
 import pickle
 import numpy as np
+from tqdm import tqdm
 import multiprocessing
 from skimage import io
 from itertools import repeat
@@ -24,7 +25,6 @@ if __name__ == '__main__':
     parser.add_argument("-z", "--zindexes", type=int, action='store', dest="zindexes", default=-1)
     parser.add_argument("-t", "--resthresh", type=float, dest="max_thresh", default=1.5, action='store', help="maximum residual to allow")
     args = parser.parse_args()
-    print(args)
 
 def keep_which(stk, peaks, w=3, sz = 7):
     """
@@ -148,7 +148,6 @@ def ensembl_bead_reg(bead_dict,pos, reg_ref='hybe1', max_dist=200,
     for h, beadarray in bead_dict.items():
         if len(beadarray)<dbscan_min_samples:
             tform_dict[h] = 'Not enough bead pairs found.'
-            print(len(beadarray))
             continue
         beadarray = np.stack(beadarray, axis=0)
         t_est = []
@@ -209,18 +208,14 @@ def classify_tform(tform_dict,pos,max_thresh):
     """
     goodness = 0
     if type(tform_dict) != dict:
-        print('No beads in', pos)
         goodness = 1
     else:
         for hybe in tform_dict.keys():
-            print(tform_dict[hybe][1])
             if hybe != 'nucstain':
                 if isinstance(tform_dict[hybe][0], str):
                     goodness = goodness + 1
-                    print(pos, hybe, 'not enough bead pairs found')
                 elif tform_dict[hybe][1] > max_thresh:
                     goodness = goodness + 1
-                    print(pos, hybe, 'residual is too high',tform_dict[hybe][1])
     return goodness
 
 def add_bead_data(bead_dicts, ave_bead, Input):
@@ -251,7 +246,6 @@ def add_bead_data(bead_dicts, ave_bead, Input):
     """
     fnames_dict = Input['fname_dicts']
     pos = Input['posnames']
-    print('Starting ', pos)
     if pos in bead_dicts:
         bead_dict = bead_dicts[pos]
     else:
@@ -292,7 +286,6 @@ def load_fnames(md_path,zindexes):
         except:
             not_finished.append(pos)
     random_posnames = np.random.choice(not_finished, size=len(not_finished), replace=False)
-    print('posnames loaded')
     hybe_list = sorted([i.split('_')[0] for i in md.acqnames if ('hybe' in i) or ('nucstain' in i)])
     if zindexes == -1:
         Input = [ {'fname_dicts': md.stkread(Channel='DeepBlue', Position=pos,
@@ -314,7 +307,6 @@ def load_fnames(md_path,zindexes):
 #                 for h,f in fnames.items():
 #                     pos_df[h.split('_')[0]].append(f)
 #             Input.append({'fname_dicts':pos_df,'posnames': pos})
-    print('fnames loaded')
     return Input
                 
 if __name__ == '__main__':
@@ -347,12 +339,10 @@ if __name__ == '__main__':
     #Finding and loading beads and tforms
     if os.path.exists(os.path.join(results_path,'beads.pkl')):
         bead_dicts = pickle.load(open(os.path.join(results_path,'beads.pkl'), 'rb'))
-        print('bead_dict Loaded')
     else:
         bead_dicts = defaultdict(dict)
     if os.path.exists(os.path.join(results_path,'tforms.pkl')):
         tform_dicts = pickle.load(open(os.path.join(results_path,'tforms.pkl'), 'rb'))
-        print('tform_dict Loaded')
     else:
         tform_dicts = defaultdict(dict)
         
@@ -362,21 +352,17 @@ if __name__ == '__main__':
     #Find Beads and Tforms
     pfunc = partial(add_bead_data,bead_dicts,Ave_Bead)
     with multiprocessing.Pool(ncpu) as p:
-        for Bead_dict,Tform_dict,pos,processed in p.imap(pfunc, Input, chunksize=1):
+        for Bead_dict,Tform_dict,pos,processed in tqdm(p.imap(pfunc, Input, chunksize=1),total=len(Input)):
             if processed>0:
                 bead_dicts[pos] = Bead_dict
                 pickle.dump(bead_dicts, open(os.path.join(results_path,'beads.pkl'), 'wb'))
                 goodness = classify_tform(Tform_dict,pos,max_thresh)
                 if goodness == 0:
                     tform_dicts['good'][pos] = Tform_dict
-                    print(pos, 'all good')
                     if pos in tform_dicts['bad'].keys():
                         del tform_dicts['bad'][pos]
                 else:
                     if pos in tform_dicts['good'].keys():
                         del tform_dicts['good'][pos]
                     tform_dicts['bad'][pos] = Tform_dict
-                    print(pos, 'no bueno')
                 pickle.dump(tform_dicts, open(os.path.join(results_path,'tforms.pkl'), 'wb'))
-            else:
-                print(pos,' Already Done')
