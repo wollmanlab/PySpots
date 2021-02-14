@@ -43,29 +43,43 @@ class Hybe_Class(object):
         self.check_flags()
         
     def check_flags(self):
+        if self.verbose:
+            tqdm([],desc='Checking Flags')
+        self.failed = False
         self.fishdata = FISHData(os.path.join(self.metadata_path,self.parameters['fishdata']))
-        flag = self.fishdata.load_data('flag',dataset=self.dataset,posname=self.posname,hybe=self.hybe)
-        if flag=='Failed':
+        #Position
+        flag = self.fishdata.load_data('flag',dataset=self.dataset,
+                                       posname=self.posname)
+        if flag == 'Failed':
+            log = self.posname+' Failed'
             self.completed = True
-            self.fishdata.add_and_save_data('Failed','flag',dataset=self.dataset,posname=self.posname)
-        elif flag=='Passed':
+            self.failed = True
+        if self.failed:
             self.completed = True
-        else:
-            flag = self.fishdata.load_data('flag',dataset=self.dataset,posname=self.posname)
-            if flag=='Failed':
+            self.fishdata.add_and_save_data('Failed','flag',dataset=self.dataset,
+                                                posname=self.posname,hybe=self.hybe)
+            self.fishdata.add_and_save_data(log,'log',
+                                                dataset=self.dataset,posname=self.posname,
+                                                hybe=self.hybe)
+        #Hybe
+        if not self.failed:
+            flag = self.fishdata.load_data('flag',dataset=self.dataset,
+                                           posname=self.posname,hybe=self.hybe)
+            if flag == 'Failed':
+                log = self.hybe+' Failed'
                 self.completed = True
-                self.fishdata.add_and_save_data('Failed','flag',dataset=self.dataset,posname=self.posname,hybe=self.hybe)
-                self.fishdata.add_and_save_data(str(self.posname+' Failed'),'log',dataset=self.dataset,posname=self.posname,hybe=self.hybe)
-            elif flag=='Passed':
-                self.completed = True
-            else:
-                self.check_registration()
+                self.failed = True
+                
+        if not self.failed:
+            self.check_registration()
             
     def check_registration(self):
         if self.verbose:
-            for i in tqdm([0],desc='Checking Registration Flags'):
-                pass
-        flag =  self.fishdata.load_data('flag',dataset=self.dataset,posname=self.posname,hybe=self.hybe,channel=self.parameters['registration_channel'])
+            tqdm([],desc='Checking Registration Flags')
+        flag =  self.fishdata.load_data('flag',dataset=self.dataset,
+                                        posname=self.posname,
+                                        hybe=self.hybe,
+                                        channel=self.parameters['registration_channel'])
         if isinstance(flag,type(None)):
             self.create_registration()
         elif flag == 'Started':
@@ -158,116 +172,4 @@ class Hybe_Class(object):
                                                         posname=self.posname,
                                                         hybe=self.hybe,
                                                         channel=channel)
-
-#     def check_completed(self):
-#         #Look for all stacks having been created
-#         self.completed_not_processed_idx = [z for z,i in enumerate(self.bitmap) if self.hybe in i]
-#         self.utilities = Utilities_Class(self.utilities_path)
-#         self.completed = True
-#         if self.verbose:
-#             iterable = tqdm(self.completed_not_processed_idx,desc='Checking Completed Stacks')
-#         else:
-#             iterable = self.completed_not_processed_idx
-#         for bitmap_idx in iterable:
-#             seq, hybe, channel = self.bitmap[bitmap_idx]
-#             stk = self.utilities.load_data(Dataset=self.dataset,
-#                                                Position=self.posname,
-#                                                Hybe=self.hybe,
-#                                                Channel=channel,
-#                                                Type='stack')
-#             if isinstance(stk,type(None)):
-#                 self.completed = False
-        
-#     def feed_registration_daemon(self):
-#         fname = str(self.dataset+'_'+self.posname+'_'+self.hybe+'.pkl')
-#         if self.verbose:
-#             iterable = tqdm([fname],desc = 'Generating Registration Class')
-#         else:
-#             iterable = [fname]
-#         for fname in iterable:
-#             reg_class = Registration_Class(self.metadata_path,
-#                                            self.dataset,
-#                                            self.posname,
-#                                            self.hybe,
-#                                            self.cword_config)
-#             pickle.dump(reg_class,open(os.path.join(self.registration_daemon_path,'input',fname),'wb'))
-#             self.reg_fnames = [fname]
-#             self.registration_started = True
-        
-#     def check_registration_daemon(self):
-#         fname = self.reg_fnames[0]
-#         fname_path = os.path.join(self.registration_daemon_path,'output',fname)
-#         if os.path.exists(fname_path):
-#             if self.verbose:
-#                 iterable = tqdm(self.reg_fnames,desc='Checking Registration Class')
-#             else:
-#                 iterable =  self.reg_fnames
-#             for fname in iterable:
-#                 fname_path = os.path.join(self.registration_daemon_path,'output',fname)
-#                 wait = True
-#                 start = time.time()
-#                 while wait:
-#                     try: # In case file is being written to
-#                         reg_class = pickle.load(open(fname_path,'rb'))
-#                         if not reg_class.passed:
-#                             self.passed = False
-#                         self.registration_completed = True
-#                         wait = False
-#                     except Exception as e:
-#                         if (time.time()-start)>self.wait:
-#                             wait = False
-#                             if self.verbose:
-#                                 print(fname_path)
-#                                 print(e)
-#                                 raise ValueError('Taking too long to load')
-                
-#     def feed_stk_daemon(self):
-#         self.completed_not_processed_idx = [z for z,i in enumerate(self.bitmap) if self.hybe in i]
-#         self.stk_fnames = [str(self.dataset+'_'+self.posname+'_'+hybe+'_'+channel+'.pkl') for seq, hybe, channel in self.bitmap if self.hybe==hybe]
-#         not_completed = [fname for fname in self.stk_fnames if not os.path.exists(os.path.join(self.stk_daemon_path,'output',fname))]
-#         not_completed = [fname for fname in not_completed if not os.path.exists(os.path.join(self.stk_daemon_path,'input',fname))]
-#         if len(not_completed)>0:
-#             if self.verbose:
-#                 iterable = tqdm(self.completed_not_processed_idx,desc='Generating Stack Classes')
-#             else:
-#                 iterable = self.completed_not_processed_idx
-#             self.stk_fnames = []
-#             for bitmap_idx in iterable:
-#                 seq, hybe, channel = self.bitmap[bitmap_idx]
-#                 fname = str(self.dataset+'_'+self.posname+'_'+hybe+'_'+channel+'.pkl')
-#                 stk_class = Stack_Class(self.metadata_path,
-#                                         self.dataset,
-#                                         self.posname,
-#                                         channel,
-#                                         hybe,
-#                                         self.cword_config)
-#                 pickle.dump(stk_class,open(os.path.join(self.stk_daemon_path,'input',fname),'wb'))
-#                 self.stk_fnames.append(fname)
-#             self.stack_started = True
-            
-#     def check_stk_daemon(self):
-#         not_completed = [fname for fname in self.stk_fnames if not os.path.exists(os.path.join(self.stk_daemon_path,'output',fname))]
-#         if len(not_completed) == 0:
-#             if self.verbose:
-#                 iterable = tqdm(self.stk_fnames,desc='Checking Stack Classes')
-#             else:
-#                 iterable = self.stk_fnames
-#             for fname in iterable:
-#                 fname_path = os.path.join(self.stk_daemon_path,'output',fname)
-#                 start = time.time()
-#                 wait = True
-#                 while wait:
-#                     try: # In case file is being written to
-#                         stk_class = pickle.load(open(fname_path,'rb'))
-#                         wait = False
-#                         if not stk_class.passed:
-#                             self.passed = False
-#                     except Exception as e:
-#                         if (time.time()-start)>self.wait:
-#                             wait = False
-#                             if self.verbose:
-#                                 print(fname_path)
-#                                 print(e)
-#                                 raise ValueError('Timed Out')
-                    
-        
+  

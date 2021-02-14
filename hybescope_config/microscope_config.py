@@ -35,6 +35,10 @@ yshift_o = chromatic_dict['Orange']['y']
 xshift_db = chromatic_dict['DeepBlue']['x']
 yshift_db = chromatic_dict['DeepBlue']['y']
 
+chromatic_dict['Green'] = {}
+chromatic_dict['Green']['x'] = chromatic_dict['DeepBlue']['x']
+chromatic_dict['Green']['y'] = chromatic_dict['DeepBlue']['y']
+
 
 
 farred_psf = imread(os.path.join(base_pth, 'farred_psf_fit_250nmZ_63x.tif'))

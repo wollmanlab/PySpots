@@ -73,10 +73,19 @@ class Registration_Class(object):
                 flag = self.fishdata.load_data('flag',dataset=self.dataset,posname=self.posname)
                 if flag=='Failed': # Position Failed
                     self.completed = True
-                    self.fishdata.add_and_save_data('Failed','flag',dataset=self.dataset,posname=self.posname,hybe=self.hybe,channel=self.channel)
-                    self.fishdata.add_and_save_data('Failed','flag',dataset=self.dataset,posname=self.posname,hybe=self.hybe)
-                    self.fishdata.add_and_save_data(str(self.posname+' Failed'),'log',dataset=self.dataset,posname=self.posname,hybe=self.hybe,channel=self.channel)
-                    self.fishdata.add_and_save_data(str(self.posname+' Failed'),'log',dataset=self.dataset,posname=self.posname,hybe=self.hybe)
+                    self.report_failure(str(self.posname+' Failed'))
+                    self.fishdata.add_and_save_data('Failed','flag',
+                                                    dataset=self.dataset,posname=self.posname,
+                                                    hybe=self.hybe,channel=self.channel)
+                    self.fishdata.add_and_save_data('Failed','flag',
+                                                    dataset=self.dataset,posname=self.posname,
+                                                    hybe=self.hybe)
+                    self.fishdata.add_and_save_data(str(self.posname+' Failed'),'log',
+                                                    dataset=self.dataset,posname=self.posname,
+                                                    hybe=self.hybe,channel=self.channel)
+                    self.fishdata.add_and_save_data(str(self.posname+' Failed'),'log',
+                                                    dataset=self.dataset,posname=self.posname,
+                                                    hybe=self.hybe)
                 else:
                     self.check_beads()
 
@@ -94,7 +103,10 @@ class Registration_Class(object):
         beads = self.fishdata.load_data('beads',dataset=self.dataset,posname=self.posname,hybe=self.hybe)
         if not isinstance(beads,type(None)):
             self.beads = beads
-            self.check_tforms()
+            if len(self.beads)==0:
+                self.report_failure('not enough beads found')
+            else:
+                self.check_tforms()
         else:
             self.find_beads()
                 
@@ -171,8 +183,12 @@ class Registration_Class(object):
             ys, xs, zs = (yu+y, xu+x, zu+z)
             subpixel_beads.append((ys, xs, zs))
         self.beads = subpixel_beads
-        self.save_beads()
-        self.find_tforms()
+        del self.stk
+        if len(self.beads)==0:
+            self.report_failure('not enough beads found')
+        else:
+            self.save_beads()
+            self.find_tforms()
 
     def find_tforms(self):
         if self.ref:
@@ -196,14 +212,27 @@ class Registration_Class(object):
         self.residual = 0
         self.nbeads = self.ref_beadarray.shape[0]
         if self.nbeads<self.dbscan_min_samples:
-            self.fishdata.add_and_save_data('Not enough reference beads found.','log',dataset=self.dataset,posname=self.posname,hybe=self.hybe,channel=self.channel)
-            self.fishdata.add_and_save_data('Failed','flag',dataset=self.dataset,posname=self.posname,hybe=self.hybe,channel=self.channel)
-            self.fishdata.add_and_save_data('Registration Failed','log',dataset=self.dataset,posname=self.posname,hybe=self.hybe)
-            self.fishdata.add_and_save_data('Failed','flag',dataset=self.dataset,posname=self.posname,hybe=self.hybe)
-            self.fishdata.add_and_save_data(str(self.hybe)+' Failed','log',dataset=self.dataset,posname=self.posname)
-            self.fishdata.add_and_save_data('Failed','flag',dataset=self.dataset,posname=self.posname)
+            self.report_failure('Not enough reference beads found.')
         else:
             self.save_tforms()
+            
+    def report_failure(self,log):
+        self.fishdata.add_and_save_data(log,'log',
+                                        dataset=self.dataset,posname=self.posname,
+                                        hybe=self.hybe,channel=self.channel)
+        self.fishdata.add_and_save_data('Failed','flag',
+                                        dataset=self.dataset,posname=self.posname,
+                                        hybe=self.hybe,channel=self.channel)
+        self.fishdata.add_and_save_data('Registration Failed','log',
+                                        dataset=self.dataset,posname=self.posname,
+                                        hybe=self.hybe)
+        self.fishdata.add_and_save_data('Failed','flag',
+                                        dataset=self.dataset,posname=self.posname,
+                                        hybe=self.hybe)
+        self.fishdata.add_and_save_data(str(self.hybe)+' Failed','log',
+                                        dataset=self.dataset,posname=self.posname)
+        self.fishdata.add_and_save_data('Failed','flag',
+                                        dataset=self.dataset,posname=self.posname)
         
     def load_ref(self):
         beads = self.fishdata.load_data('beads',dataset=self.dataset,posname=self.posname,hybe=self.ref_hybe)

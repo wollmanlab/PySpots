@@ -3,7 +3,8 @@ import os
 import pandas
 import numpy as np
 from skimage.io import imread, imsave
-from skimage.external import tifffile
+import cv2 #cv2.imread(os.path.join(fname),-1)
+# from skimage.external import tifffile
 import os
 import pandas as pd
 import numpy as np
@@ -109,7 +110,9 @@ class FISHData(object):
             ftype = '.csv'
         elif dtype == 'cimg':
             ftype = '.tif'
-        elif dtype == 'mask':
+        elif dtype == 'nuclei_mask':
+            ftype = '.tif'
+        elif dtype == 'cytoplasm_mask':
             ftype = '.tif'
         elif dtype == 'beads':
             ftype = '.csv'
@@ -117,6 +120,12 @@ class FISHData(object):
             ftype = '.pkl'
         elif dtype == 'spotcalls':
             ftype = '.csv'
+        elif dtype == 'cell_metadata':
+            ftype = '.csv'
+        elif dtype == 'counts':
+            ftype = '.csv'
+        else:
+            ftype = '.npy'
         fname = "{0}_{1}_{2}_{3}_{4}_{5}{6}".format(dataset,posname,hybe,channel,zindex,dtype,ftype)
         return fname
 
@@ -156,7 +165,8 @@ class FISHData(object):
         if fname is None:
             raise ValueError("No items for in metadata matching request.")
         if dtype == 'cstk':
-            tifffile.imsave(fname, np.swapaxes(np.swapaxes(data.astype('uint16'),0,2),1,2), metadata={'axes': 'ZYX'})
+            cv2.imwrite(fname, np.swapaxes(np.swapaxes(data.astype('uint16'),0,2),1,2))
+#             tifffile.imsave(fname, np.swapaxes(np.swapaxes(data.astype('uint16'),0,2),1,2), metadata={'axes': 'ZYX'})
         elif dtype == 'nf':
             dout = np.savetxt(fname, data)
         elif dtype == 'flag':
@@ -168,17 +178,29 @@ class FISHData(object):
                 f.write(str(data))
                 f.close()
         elif dtype == 'cimg':
-            tifffile.imsave(fname, data.astype('int16'))
-        elif dtype == 'mask':
-            tifffile.imsave(fname, data.astype('int16'))
+            cv2.imwrite(fname, data.astype('uint16'))
+#             tifffile.imsave(fname, data.astype('int16'))
+        elif dtype == 'nuclei_mask':
+            cv2.imwrite(fname, data.astype('uint16'))
+#             tifffile.imsave(fname, data.astype('int16'))
+        elif dtype == 'cytoplasm_mask':
+            cv2.imwrite(fname, data.astype('uint16'))
+#             tifffile.imsave(fname, data.astype('int16'))
         elif dtype == 'beads':
             pd.DataFrame(data).to_csv(fname)
         elif dtype == 'tforms':
             pickle.dump(data,open(fname,'wb'))
         elif dtype == 'spotcalls':
             data.to_csv(fname)
+        elif dtype == 'cell_metadata':
+            data.to_csv(fname)
+        elif dtype == 'counts':
+            data.to_csv(fname)
         elif dtype == 'image':
-            tifffile.imsave(fname, data.astype('uint16'))
+            cv2.imwrite(fname, data.astype('uint16'))
+#             tifffile.imsave(fname, data.astype('uint16'))
+        else:
+            np.save(fname,data)
         return True
 
 #     def get_data(self,dataset,posname,hybe,channel,zindex,dtype,fname_only=False):
@@ -231,33 +253,52 @@ class FISHData(object):
 #             return None
         full_fname = os.path.join(self.base_path, relative_fname)
         if os.path.exists(full_fname):
-            if dtype == 'cstk':
-                dout = tifffile.imread(full_fname).astype(np.float64)
-                dout = np.swapaxes(np.swapaxes(dout,0,2),0,1)
-            elif dtype == 'image':
-                dout = tifffile.imread(full_fname).astype(np.float64)
-            elif dtype == 'nf':
-                dout = np.genfromtxt(full_fname, delimiter=',')
-            elif dtype == 'flag':
-                with open(full_fname,"r") as f:
-                    dout = f.read()
-                    f.close()
-            elif dtype == 'log':
-                with open(full_fname,"r") as f:
-                    dout = f.read()
-                    f.close()
-            elif dtype == 'cimg':
-                dout = tifffile.imread(full_fname).astype('int16')
-            elif dtype == 'mask':
-                dout = tifffile.imread(full_fname).astype('int16')
-            elif dtype == 'beads':
-                dout = np.array(pd.read_csv(full_fname,index_col=0))
-            elif dtype == 'tforms':
-    #             dout = pd.read_csv(full_fname,index_col=0)
-                dout = pickle.load(open(full_fname,'rb'))
-            elif dtype == 'spotcalls':
-                dout = pd.read_csv(full_fname,index_col=0)
-            else:
+            try:
+                if dtype == 'cstk':
+                    dout = cv2.imread(full_fname,-1).astype(np.float64)
+#                     dout = tifffile.imread(full_fname).astype(np.float64)
+                    dout = np.swapaxes(np.swapaxes(dout,0,2),0,1)
+                elif dtype == 'image':
+                    dout = cv2.imread(full_fname,-1).astype(np.float64)
+#                     dout = tifffile.imread(full_fname).astype(np.float64)
+                elif dtype == 'nf':
+                    dout = np.genfromtxt(full_fname, delimiter=',')
+                elif dtype == 'flag':
+                    with open(full_fname,"r") as f:
+                        dout = f.read()
+                        f.close()
+                elif dtype == 'log':
+                    with open(full_fname,"r") as f:
+                        dout = f.read()
+                        f.close()
+                elif dtype == 'cimg':
+                    dout = cv2.imread(full_fname,-1).astype('int16')
+#                     dout = tifffile.imread(full_fname).astype('int16')
+                elif dtype == 'nuclei_mask':
+                    dout = cv2.imread(full_fname,-1).astype('int16')
+#                     dout = tifffile.imread(full_fname).astype('int16')
+                elif dtype == 'cytoplasm_mask':
+                    dout = cv2.imread(full_fname,-1).astype('int16')
+#                     dout = tifffile.imread(full_fname).astype('int16')
+                elif dtype == 'beads':
+                    dout = np.array(pd.read_csv(full_fname,index_col=0))
+                elif dtype == 'tforms':
+        #             dout = pd.read_csv(full_fname,index_col=0)
+                    dout = pickle.load(open(full_fname,'rb'))
+                elif dtype == 'spotcalls':
+                    dout = pd.read_csv(full_fname,index_col=0)
+                elif dtype == 'cell_metadata':
+                    dout = pd.read_csv(full_fname,index_col=0)
+                elif dtype == 'counts':
+                    dout = pd.read_csv(full_fname,index_col=0)
+                else:
+                    try:
+                        dout = np.load(full_fname)
+                    except:
+                        dout = None
+            except Exception as e:
+                print('unable to read file')
+                print('Error:',e,full_fname)
                 dout = None
         else:
             dout = None

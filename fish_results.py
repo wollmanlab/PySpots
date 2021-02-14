@@ -3,7 +3,8 @@ import os
 import pandas
 import numpy as np
 from skimage.io import imread, imsave
-from skimage.external import tifffile
+# from skimage.external import tifffile
+import cv2 #cv2.imread(os.path.join(fname),-1)
 import os
 import pandas as pd
 import numpy as np
@@ -187,13 +188,16 @@ class HybeData(pickle.Pickler):
             raise ValueError("No items for in metadata matching request.")
         if dtype == 'cstk':
             data = data.astype('uint16')
-            tifffile.imsave(fname, np.swapaxes(np.swapaxes(data,0,2),1,2), metadata={'axes': 'ZYX'})
+            cv2.imwrite(os.path.join(fname),np.swapaxes(np.swapaxes(data,0,2),1,2))
+#             tifffile.imsave(fname, np.swapaxes(np.swapaxes(data,0,2),1,2), metadata={'axes': 'ZYX'})
         elif dtype == 'nf':
             dout = np.savetxt(fname, data)
         elif dtype == 'cimg':
-            tifffile.imsave(fname, data.astype('int16')) # Allow imagej to read
+            cv2.imwrite(os.path.join(fname),data.astype('int16'))
+#             tifffile.imsave(fname, data.astype('int16')) # Allow imagej to read
         elif dtype == 'mask':
-            tifffile.imsave(fname, data.astype('int16'))
+            cv2.imwrite(os.path.join(fname),data.astype('int16'))
+#             tifffile.imsave(fname, data.astype('int16'))
         elif dtype == 'beads':
             pickle.dump(data,open(fname,'wb'))
         elif dtype == 'tforms':
@@ -240,14 +244,17 @@ class HybeData(pickle.Pickler):
             return None
         full_fname = os.path.join(self.base_path, relative_fname)
         if dtype == 'cstk':
-            dout = tifffile.imread(full_fname).astype(np.float64)
+            dout = cv2.imread(os.path.join(fname),-1).astype(np.float64)
+#             dout = tifffile.imread(full_fname).astype(np.float64)
             dout = np.swapaxes(np.swapaxes(dout,0,2),0,1)
         elif dtype == 'nf':
             dout = np.genfromtxt(full_fname, delimiter=',')
         elif dtype == 'cimg':
-            dout = tifffile.imread(full_fname).astype('int16')
+            dout = cv2.imread(os.path.join(fname),-1).astype('int16')
+#             dout = tifffile.imread(full_fname).astype('int16')
         elif dtype == 'mask':
-            dout = tifffile.imread(full_fname).astype('int16')
+            dout = cv2.imread(os.path.join(fname),-1).astype('int16')
+#             dout = tifffile.imread(full_fname).astype('int16')
         elif dtype == 'beads':
             dout = pickle.load(open(full_fname,'rb'))
         elif dtype == 'tforms':

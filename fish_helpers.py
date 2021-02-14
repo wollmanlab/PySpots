@@ -15,8 +15,8 @@ from math import sqrt
 import importlib
 import multiprocessing
 import sys
-plt.style.use(['dark_background'])
-from ipypb import ipb
+# plt.style.use(['dark_background'])
+# from ipypb import ipb
 from tqdm import tqdm
 import random
 
@@ -235,7 +235,7 @@ def progress_update(md,path=False):
     print(len(finished),' Positions Finished')
     print(len(non_finished),' Positions Not Finished')
 
-def Display(image,title='Figure',cmap='inferno',figsize=(10,10),rel_min=0.1,rel_max=99.9):
+def Display(image,title='Figure',cmap='inferno',figsize=(10,10),rel_min=0.1,rel_max=99.9,colorbar=False):
     img = image.copy()
     if rel_min>0:
         img_min = np.percentile(img.ravel(),rel_min)
@@ -246,6 +246,8 @@ def Display(image,title='Figure',cmap='inferno',figsize=(10,10),rel_min=0.1,rel_
     plt.figure(figsize=figsize)
     plt.title(str(title))
     plt.imshow(img,cmap=cmap)
+    if colorbar:
+        plt.colorbar()
     plt.show()
     
 def spot_dist(spotcalls,center=True):

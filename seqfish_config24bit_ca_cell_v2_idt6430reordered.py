@@ -1,5 +1,3 @@
-x
-
 # Config for analysis of SeqFish data in Wollman lab (Jan 2018)
 # Necessary files are assumed to be in the current directory when this config is imported.
 # Currently designed for Python 3.5

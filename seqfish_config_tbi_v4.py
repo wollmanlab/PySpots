@@ -10,12 +10,13 @@
 # Might need to change this if experimental conditions are different
 import numpy
 import numpy as np
-import pickle
-import pandas
+import dill as pickle
+import pandas as pd
 import os
 from scipy.spatial import distance_matrix
 from collections import OrderedDict
 from sklearn.preprocessing import normalize
+from hybescope_config.microscope_config import *
 
 # Basic parameters of imaging
 
@@ -63,7 +64,7 @@ codebook_pth = '/bigstore/GeneralStorage/Rob/merfish/MERFISH_analysis-master/mou
 base_pth = '/home/zach/PythonRepos/PySpots/hybescope_config/'
          
 # Import the codebook for genes in the experiment
-codewords = pandas.read_csv(codebook_pth,  # Warning - file import
+codewords = pd.read_csv(codebook_pth,  # Warning - file import
                        skiprows=3)
 codewords.columns = ['name', 'id', 'barcode']
 bcs = []
@@ -88,35 +89,109 @@ def load_codebook(fname):
             barcodes.append(list(bc))
     return np.array(barcodes)
 
-cwords = load_codebook(os.path.join(base_pth,'MHD4_18bit_187cwords.csv'))
-# Find unique gene Codewords (isoforms of same gene can have same barcode)
-# and also find unused codewords MHD4 from use codewords for False Positive Detection
-c_dropped = codewords.drop_duplicates('name')
-bc = numpy.array([list(map(int, list(s))) for s in c_dropped.barcode.values])
+# cwords = load_codebook(os.path.join(base_pth,'MHD4_18bit_187cwords.csv'))
+# # Find unique gene Codewords (isoforms of same gene can have same barcode)
+# # and also find unused codewords MHD4 from use codewords for False Positive Detection
+# c_dropped = codewords.drop_duplicates('name')
+# bc = numpy.array([list(map(int, list(s))) for s in c_dropped.barcode.values])
 
-blank_codewords = []
-for idx, row in enumerate(distance_matrix(cwords, bc, p=1)):
-    sort_idx = numpy.argsort(row)
-    if row[sort_idx][0]>=4.0:
-        #print(row[sort_idx[:3]])
-        blank_codewords.append(cwords[idx])
-idxes = numpy.random.choice(range(len(blank_codewords)), size=len(cwords)-len(c_dropped.barcode.values), replace=False)
-blank_bc = numpy.array(blank_codewords)[idxes]
+# blank_codewords = []
+# for idx, row in enumerate(distance_matrix(cwords, bc, p=1)):
+#     sort_idx = numpy.argsort(row)
+#     if row[sort_idx][0]>=4.0:
+#         #print(row[sort_idx[:3]])
+#         blank_codewords.append(cwords[idx])
+# idxes = numpy.random.choice(range(len(blank_codewords)), size=len(cwords)-len(c_dropped.barcode.values), replace=False)
+# blank_bc = numpy.array(blank_codewords)[idxes]
 
-cbook_dict = OrderedDict()
-for idx, row in c_dropped.sort_values('name').iterrows():
-    cbook_dict[row['name']] = numpy.array(list(row.barcode), dtype=float)
+# cbook_dict = OrderedDict()
+# for idx, row in c_dropped.sort_values('name').iterrows():
+#     cbook_dict[row['name']] = numpy.array(list(row.barcode), dtype=float)
     
-blank_dict = {}
-for i, bc in enumerate(blank_bc):
-    blank_dict['blank'+str(i)] = bc
+# blank_dict = {}
+# for i, bc in enumerate(blank_bc):
+#     blank_dict['blank'+str(i)] = bc
     
-gids, cwords = zip(*cbook_dict.items())
-bids, blanks = zip(*blank_dict.items())
+# gids, cwords = zip(*cbook_dict.items())
+# bids, blanks = zip(*blank_dict.items())
+# aids = gids+bids
+# gene_codeword_vectors = numpy.stack(cwords, axis=0)
+# blank_codeword_vectors = numpy.stack(blanks, axis=0)
+# all_codeword_vectors = numpy.concatenate((gene_codeword_vectors,blank_codeword_vectors),axis=0)
+# norm_gene_codeword_vectors = normalize(gene_codeword_vectors)
+# norm_blank_codeword_vectors = normalize(blank_codeword_vectors)
+# norm_all_codeword_vectors = normalize(all_codeword_vectors)
+
+# Import the codebook for genes in the experiment
+possible_cwords = load_codebook(os.path.join(base_pth,'MHD4_18bit_187cwords.csv'))
+
+codebook = pd.read_csv(codebook_pth,skiprows=3)
+codebook.columns = [i.split(' ')[-1] for i in codebook.columns]
+codebook['barcode'] = [str(i).zfill(nbits) for i in codebook['barcode']]
+blank_cwords = []
+blank_names = []
+for i in range(possible_cwords.shape[0]):
+    barcode = ''.join([str(b) for b in possible_cwords[i,:]])
+    if not barcode in list(codebook['barcode']):
+        blank_cwords.append(possible_cwords[i,:])
+        blank_names.append('blank'+str(len(blank_names)))
+blank_cwords = np.stack(blank_cwords)
+true_cwords = np.array([np.array([int(i) for i in codebook['barcode'].iloc[b]]) for b in range(len(codebook))])
+cwords = np.concatenate([true_cwords,blank_cwords])
+
+gids = list(codebook['name'])
+bids = blank_names
 aids = gids+bids
-gene_codeword_vectors = numpy.stack(cwords, axis=0)
-blank_codeword_vectors = numpy.stack(blanks, axis=0)
-all_codeword_vectors = numpy.concatenate((gene_codeword_vectors,blank_codeword_vectors),axis=0)
+gene_codeword_vectors = true_cwords
+blank_codeword_vectors = blank_cwords
+all_codeword_vectors = cwords
 norm_gene_codeword_vectors = normalize(gene_codeword_vectors)
 norm_blank_codeword_vectors = normalize(blank_codeword_vectors)
 norm_all_codeword_vectors = normalize(all_codeword_vectors)
+
+parameters = {}
+parameters['dtype_rel_min']=0
+parameters['dtype_rel_max']=100
+parameters['dtype']='uint16'
+parameters['background_kernel']=9
+parameters['blur_kernel']=1
+parameters['background_method']='median'
+parameters['blur_method']='gaussian'
+parameters['hotpixel_kernel_size']=3
+parameters['normalization_rel_min']=50
+parameters['normalization_rel_max']=95
+parameters['deconvolution_niterations']=10
+parameters['deconvolution_batches']=10
+parameters['deconvolution_gpu']=False
+parameters['projection_zstart']=-1
+parameters['projection_k']=1
+parameters['projection_zskip']=2 
+parameters['projection_zend']=-1
+parameters['projection_function']='mean'
+parameters['verbose']=False
+parameters['ncpu']=10
+parameters['normalization_max']=1000
+parameters['normalization_rel_max']=99
+parameters['normalization_rel_min']=50
+parameters['registration_threshold']=2
+parameters['upsamp_factor']=5
+parameters['dbscan_eps']=3
+parameters['dbscan_min_samples']=20
+parameters['max_dist']=200
+parameters['match_threshold']=0.65
+parameters['ref_hybe']='hybe1'
+parameters['hybedata']='hybedata'
+parameters['fishdata']='fishdata'
+parameters['registration_channel']='DeepBlue'
+parameters['daemon_path']='/scratch/daemon/'
+parameters['utilities_path']='/scratch/utilities/'
+parameters['floor']=True
+
+parameters['match_thresh'] = -2
+parameters['fpr_thresh'] = 0.4
+parameters['nucstain_channel'] = 'DeepBlue'
+
+hotpixel_loc = pickle.load(open('/scratch/hotpixels.pkl','rb'))
+# Not certain about hotpixel x vs y
+hotpixel_X = hotpixel_loc[0]
+hotpixel_Y = hotpixel_loc[1]

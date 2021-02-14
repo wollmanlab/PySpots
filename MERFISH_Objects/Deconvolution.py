@@ -65,7 +65,24 @@ class Deconvolution_Class(object):
         self.passed = True
         
     def run(self):
-        self.check_flags()
+        if self.deconvolution_niterations>0:
+            self.check_flags()
+        else:
+            self.completed = True
+            self.passed = True
+            self.fishdata.add_and_save_data('Passed',
+                                            'flag',
+                                            dataset=self.dataset,
+                                            posname=self.posname,
+                                            hybe=self.hybe,
+                                            channel=self.channel,
+                                            zindex='all')
+            self.fishdata.add_and_save_data('Passed',
+                                            'flag',
+                                            dataset=self.dataset,
+                                            posname=self.posname,
+                                            hybe=self.hybe,
+                                            channel=self.channel)
             
     def check_flags(self):
         self.fishdata = FISHData(os.path.join(self.metadata_path,self.parameters['fishdata']))
@@ -206,6 +223,7 @@ class Deconvolution_Class(object):
     def deconvolve(self):
         self.load_psf()
         stk = self.stk.astype('float64')
+        
         stk = stk-stk.min()
         stk = stk/stk.max()
         if self.verbose:
@@ -214,7 +232,6 @@ class Deconvolution_Class(object):
             iterable = range(int(round(self.deconvolution_batches/2)))
         step = int(stk.shape[0]/(self.deconvolution_batches/2))
         if self.gpu:
-            #fd_restoration.RichardsonLucyDeconvolver(3).initialize()
             if self.deconvolution_batches>1:
                 for i in iterable:
                     i0 = int(step*i)
@@ -252,8 +269,6 @@ class Deconvolution_Class(object):
                 self.stk[:,:,z] = img
             ppool.close()
             sys.stdout.flush()
-#         for z in iterable: #Parralelize this 
-#             self.stk[:,:,z] = self.normalize_image(self.stk[:,:,z])
             
     def normalize_image(self,img):
         if np.sum(img.ravel())==0:
