@@ -49,30 +49,29 @@ class Segment_Class(object):
         self.merfish_config = importlib.import_module(self.cword_config)
         self.parameters = self.merfish_config.parameters
         self.k = self.parameters['projection_k']
-        """ Move to parameters later"""
-        self.channel = 'FarRed'#'DeepBlue'#self.parameters['nucstain_channel']
+        self.channel = self.parameters['nucstain_channel']
         self.acq = 'infer'#self.parameters['nucstain_acq']
-        self.acqname = 'hybe1'#'nucstain'
-        self.projection_function = 'mean'
-        self.min_size = 1000
-        self.overlap_threshold = 0.3
-        self.pixel_thresh = 10**3#10**4
-        self.z_thresh = 0#5
-        self.distance_thresh = 10
-        self.model_type="nuclei"
-        self.gpu = False
-        self.batch_size = 8
-        self.diameter = 90.0
-        self.channels = [0,0]
-        self.flow_threshold = 1
-        self.cellprob_threshold = 0
-        self.downsample = 0.25
-        self.two_dimensional = True#False
-        self.overwrite = False
-        self.singular_zindex = -1
-        self.nuclear_blur = 300
-        self.pixel_size = 0.103
-        self.z_step_size = 0.4
+        self.acqname = self.parameters['nucstain_acq']
+        self.projection_function = self.parameters['segment_projection_function']
+        self.min_size = self.parameters['segment_min_size']
+        self.overlap_threshold = self.parameters['segment_overlap_threshold']
+        self.pixel_thresh = self.parameters['segment_pixel_thresh']
+        self.z_thresh = self.parameters['segment_z_thresh']
+        self.distance_thresh = self.parameters['segment_distance_thresh']
+        self.model_type=self.parameters['segment_model_type']
+        self.gpu = self.parameters['segment_gpu']
+        self.batch_size = self.parameters['segment_batch_size']
+        self.diameter = self.parameters['segment_diameter']
+        self.channels = self.parameters['segment_channels']
+        self.flow_threshold = self.parameters['segment_flow_threshold']
+        self.cellprob_threshold = self.parameters['segment_cellprob_threshold']
+        self.downsample = self.parameters['segment_downsample'] 
+        self.two_dimensional = self.parameters['segment_two_dimensional']
+        self.overwrite = self.parameters['segment_overwrite']
+        self.singular_zindex = self.parameters['segment_singular_zindex']
+        self.nuclear_blur = self.parameters['segment_nuclear_blur']
+        self.pixel_size = self.parameters['segment_pixel_size']
+        self.z_step_size = self.parameters['segment_z_step_size']
 
         self.fishdata = FISHData(os.path.join(self.metadata_path,self.parameters['fishdata']))
             
@@ -164,12 +163,20 @@ class Segment_Class(object):
             print('zstart of ',self.projection_zstart,' is larger than zend of', self.projection_zend)
             raise(ValueError('Projection Error'))
         self.zindexes = np.array(range(self.projection_zstart,self.projection_zend,self.projection_zskip))
+        if self.two_dimensional:
+            self.zindexes = [0]
         self.nZ = len(self.zindexes)
+        
         """ In future find beads for nucstain too """
         
     def check_cell_metadata(self):
         try:
-            nuclei_mask = self.fishdata.load_data('nuclei_mask',
+            if self.two_dimensional:
+                nuclei_mask = self.fishdata.load_data('nuclei_mask',
+                                                  dataset=self.dataset,
+                                                  posname=self.posname)
+            else:
+                nuclei_mask = self.fishdata.load_data('nuclei_mask',
                                                   dataset=self.dataset,
                                                   posname=self.posname,
                                                   zindex=self.zindexes[0])
@@ -244,7 +251,7 @@ class Segment_Class(object):
             stk[:,:,img_idx]=cv2.imread(os.path.join(fname),-1) # check which is faster
 #             stk[:,:,img_idx]=io.imread(os.path.join(fname))
         if self.two_dimensional:
-            self.nuclear_stack = self.process_stk(stk)
+            self.nuclear_stack = self.process_stk(self.project_image(stk)[:,:,None])
             self.nuclear_images = [self.nuclear_stack]
         else:
             self.nuclear_stack = self.project_stk(stk)
@@ -410,22 +417,25 @@ class Segment_Class(object):
             iterable = enumerate(self.zindexes)
         for i,z in iterable:
             if self.two_dimensional:
-                mi = self.mask_images[0]
-                vi = self.voronoi_images[0]
+                self.fishdata.add_and_save_data(self.mask_images[0],
+                                                dtype='nuclei_mask',
+                                                dataset=self.dataset,
+                                                posname=self.posname)
+                self.fishdata.add_and_save_data(self.voronoi_images[0],
+                                                dtype='cytoplasm_mask',
+                                                dataset=self.dataset,
+                                                posname=self.posname)
             else:
-                mi = self.mask_images[i]
-                vi = self.voronoi_images[i]
-                
-            self.fishdata.add_and_save_data(mi,
-                                            dtype='nuclei_mask',
-                                            dataset=self.dataset,
-                                            posname=self.posname,
-                                            zindex=z)
-            self.fishdata.add_and_save_data(vi,
-                                            dtype='cytoplasm_mask',
-                                            dataset=self.dataset,
-                                            posname=self.posname,
-                                            zindex=z)
+                self.fishdata.add_and_save_data(self.mask_images[i],
+                                                dtype='nuclei_mask',
+                                                dataset=self.dataset,
+                                                posname=self.posname,
+                                                zindex=z)
+                self.fishdata.add_and_save_data(self.voronoi_images[i],
+                                                dtype='cytoplasm_mask',
+                                                dataset=self.dataset,
+                                                posname=self.posname,
+                                                zindex=z)
         self.update_flags()
         self.completed = True
             

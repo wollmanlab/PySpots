@@ -75,17 +75,14 @@ class Position_Class(object):
             tqdm([],desc='Checking Imaging')
         self.started_acqs = [i for i in os.listdir(self.metadata_path) if 'hybe' in i]
         self.nucstain = [i for i in os.listdir(self.metadata_path) if 'nucstain' in i]
-        self.acqs = [i for i in self.started_acqs if os.path.exists(os.path.join(self.metadata_path,i,self.posname))]
-#         self.metadata = Metadata(self.metadata_path)
-#         self.image_table = self.metadata.image_table[self.metadata.image_table.Position==self.posname].copy()
-#         self.image_zindexes = self.image_table.Zindex.unique()
-#         self.max_z = np.max(self.image_zindexes)
-#         self.acqs = list(self.image_table.acq.unique())
+        dictionary = {''.join([i+'_' for i in os.listdir(os.path.join(self.metadata_path,self.started_acqs[0],posname_directory))[0][4:].split('_')[:-5]])[:-1]:posname_directory for posname_directory in os.listdir(os.path.join(self.metadata_path,self.started_acqs[0])) if not 'Metadata' in posname_directory}
+        
+        self.acqs = [i for i in self.started_acqs if os.path.exists(os.path.join(self.metadata_path,i,dictionary[self.posname]))]
         self.imaged_hybes = [i.split('_')[0] for i in self.acqs if 'hybe' in i]
-#         self.nucstain = [i for i in self.acqs if 'nucstain' in i]
         self.not_imaged = list(np.unique([hybe for seq,hybe,channel in self.bitmap if not hybe in self.imaged_hybes]))
         if len(self.nucstain)>0:
             self.check_segmentation()
+#             self.imaged_hybes.append('nucstain')
         if len(self.imaged_hybes)>0:
             self.check_hybes()
         if self.hybes_completed:

@@ -152,7 +152,7 @@ if __name__ == '__main__':
         os.mkdir(fishdata_path)
     while not os.path.exists(os.path.join(dataset_daemon_path,'output',fname)):
         p = check_status(os.path.join(metadata_path,'fishdata'))
-        sys.stdout.write('\r'+str(datetime.now().strftime("%H:%M:%S"))+' '+p)
+        sys.stdout.write('\r'+str(datetime.now().strftime("%H:%M:%S"))+' '+p+'                     ')
         sys.stdout.flush()
         time.sleep(5)
     

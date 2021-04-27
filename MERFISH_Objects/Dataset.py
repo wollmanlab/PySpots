@@ -35,11 +35,10 @@ class Dataset_Class(object):
         self.hybes = list(np.unique([hybe for seq,hybe,channel in self.bitmap]))
         self.utilities = Utilities_Class(self.parameters['utilities_path'])
         self.fishdata = FISHData(os.path.join(self.metadata_path,self.parameters['fishdata']))
-#         self.find_hot_pixels()
 
         """ Move To Parameters"""
         self.n_pos = 10
-        self.nbits = 18
+#         self.nbits = 18
         self.n_vectors_per_pos = 10**6
         self.pull_vectors_ncpu = 1
             

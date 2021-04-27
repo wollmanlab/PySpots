@@ -42,7 +42,7 @@ class Stack_Class(object):
         self.projection_zskip=self.parameters['projection_zskip'] 
         self.projection_zend=self.parameters['projection_zend']
         self.projection_function=self.parameters['projection_function']
-        
+        self.two_dimensional = self.parameters['two_dimensional']
         self.completed = False
         self.passed = True
         self.images_completed=False
@@ -181,3 +181,5 @@ class Stack_Class(object):
             print('zstart of ',self.projection_zstart,' is larger than zend of', self.projection_zend)
             raise(ValueError('Projection Error'))
         self.zindexes = np.array(range(self.projection_zstart,self.projection_zend,self.projection_zskip))
+        if self.two_dimensional:
+            self.zindexes = [0]

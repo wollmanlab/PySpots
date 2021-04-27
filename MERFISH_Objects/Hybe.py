@@ -92,7 +92,10 @@ class Hybe_Class(object):
             self.completed = True 
 
     def check_stacks(self):
-        self.channels = [channel for seq,hybe,channel in self.bitmap if self.hybe==hybe]
+        if self.hybe == 'nucstain':
+            self.channels = np.unique([channel for seq,hybe,channel in self.bitmap])
+        else:
+            self.channels = [channel for seq,hybe,channel in self.bitmap if self.hybe==hybe]
         if self.verbose:
             iterable = tqdm(self.channels,desc='Checking Stack Flags')
         else:

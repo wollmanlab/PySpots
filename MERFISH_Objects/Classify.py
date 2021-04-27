@@ -36,7 +36,7 @@ class Classify_Class(object):
         self.parameters =  self.merfish_config.parameters
         self.utilities = Utilities_Class(self.parameters['utilities_path'])
         self.fishdata = FISHData(os.path.join(self.metadata_path,self.parameters['fishdata']))
-        
+        self.two_dimensional = self.parameters['two_dimensional']
         self.completed = False
         self.passed = True
      
@@ -150,7 +150,8 @@ class Classify_Class(object):
             print('zstart of ',self.projection_zstart,' is larger than zend of', self.projection_zend)
             raise(ValueError('Projection Error'))
         self.zindexes = np.array(range(self.projection_zstart,self.projection_zend,self.projection_zskip))
-        
+        if self.parameters['two_dimensional']:
+            self.zindexes = [0]
         
     def load_configuration(self):
         self.merfish_config = importlib.import_module(self.cword_config)
@@ -167,9 +168,26 @@ class Classify_Class(object):
         self.utilities_path = self.parameters['utilities_path']
         self.fishdata = FISHData(os.path.join(self.metadata_path,self.parameters['fishdata']))
         self.check_projection()
-        
+        self.load_segmentation()
         self.bitmatch_thresh = self.parameters['match_thresh']
-        self.fpr_thresh = 0.2#self.parameters['fpr_thresh']
+        self.fpr_thresh = self.parameters['fpr_thresh']
+        
+    def load_segmentation(self):
+        self.segmentation = torch.zeros([2048,2048,len(self.zindexes)])
+        if self.parameters['two_dimensional']==True:
+            mask = self.fishdata.load_data('cytoplasm_mask',dataset=self.dataset,posname=self.posname)
+            if not isinstance(mask,type(None)):
+                self.segmentation[:,:,0] = torch.tensor(mask.astype(float))
+        else:
+            if self.verbose:
+                iterable = tqdm(enumerate(self.zindexes),total=len(self.zindexes),desc='Loading Segmentation')
+            else:
+                iterable = enumerate(self.zindexes)
+            for i,z in iterable:
+                mask = self.fishdata.load_data('cytoplasm_mask',dataset=self.dataset,posname=self.posname,zindex=z)
+                if not isinstance(mask,type(None)):
+                    self.segmentation[:,:,i] = torch.tensor(mask.astype(float))
+        self.seg_mask = self.segmentation.max(axis=2).values>0
         
     def load_codestack(self,zindex):
         if len(self.hybedata_path)>0:
@@ -189,11 +207,15 @@ class Classify_Class(object):
     
     def pull_vector_zindex(self,zindex):
         cstk = self.load_codestack(zindex)
+        
+        cstk[self.seg_mask==False,:] = 0
+        cstk = cstk-cstk.median(axis=2).values[:,:,None]
         cstk = self.z_score_cstk(cstk)
+        self.cstk = cstk
         if torch.max(cstk)>0:
             cstk_max = torch.max(cstk,axis=2).values
             # torch percentile should be faster
-            mask = cstk_max>np.percentile(cstk_max.cpu(),90) 
+            mask = cstk_max>np.percentile(cstk_max[self.seg_mask].cpu(),90) 
             # Add later self.parameters.classification_rel_thresh)
             x,y = torch.where(mask)
             v = cstk[x,y,:].cpu()
@@ -225,8 +247,8 @@ class Classify_Class(object):
         self.z_coordinates = torch.cat(Z)
         
     def z_score_cstk(self,cstk):
-        mu = torch.tensor([torch.mean(cstk[:,:,i]) for i in range(self.nbits)])
-        std = torch.tensor([torch.std(cstk[:,:,i]) for i in range(self.nbits)])
+        mu = torch.tensor([torch.mean(cstk[:,:,i][self.seg_mask]) for i in range(self.nbits)])
+        std = torch.tensor([torch.std(cstk[:,:,i][self.seg_mask]) for i in range(self.nbits)])
         return (cstk-mu)/std
     
     def calculate_false_positive_rate(self,pixel_labels):
@@ -476,6 +498,8 @@ class Classify_Class(object):
             raise(ValueError('Projection Error'))
         self.zindexes = np.array(range(self.projection_zstart,self.projection_zend,self.projection_zskip))
         self.nZ = len(self.zindexes)
+        if self.parameters['two_dimensional']:
+            self.zindexes = [0]
     
     def generate_cell_metadata(self,pixel_size=0.104,z_step=0.4):
         columns = ['posname','label','pixel_x','pixel_y','pixel_z',

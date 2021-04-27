@@ -353,7 +353,11 @@ def fix_channel_swap(md_path,hybes):
                         print(new_file)
                         raise Exception('channel didnt match?')
                     os.rename(os.path.join(path,pos,temp_file),os.path.join(path,pos,new_file))
-
+def Display_mask(mask,figsize=[10,10],title='mask'):
+    plt.figure(figsize=figsize)
+    plt.title(title)
+    plt.imshow(colorize_segmented_image(mask))
+    plt.show()
                     
 def colorize_segmented_image(img, color_type='rgb'):
     """
