@@ -113,7 +113,7 @@ nbits = len(bitmap)
 
 
 
-codebook_pth = '/bigstore/GeneralStorage/Zach/MERFISH/Cornea/Inflammation.tx'
+codebook_pth = '/bigstore/GeneralStorage/Zach/MERFISH/Cornea/Inflammation.txt'
 def load_codebook(fname):
     barcodes = []
     with open(fname, 'r') as f:
