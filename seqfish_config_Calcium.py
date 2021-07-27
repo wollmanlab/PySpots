@@ -35,6 +35,7 @@ nbits = len(bitmap)
 # config_options
 # codebook_pth = '/home/rfor10/repos/seqfish_design/ca_celltype_v2/calcium_codebook_final_v2.csv'
 codebook_pth = '/bigstore/binfo/Codebooks/Calcium_codebook.csv'
+codebook_pth = '/bigstore/binfo/Codebooks/Calcium_codebook_remade.csv'
 # base_pth = '/home/rfor10/repos/spot_calling'
          
 # # Import the codebook for genes in the experiment

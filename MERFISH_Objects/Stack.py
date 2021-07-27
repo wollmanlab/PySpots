@@ -36,7 +36,10 @@ class Stack_Class(object):
         self.parameters = self.merfish_config.parameters
         self.daemon_path = self.parameters['daemon_path']
         self.image_daemon_path = os.path.join(self.daemon_path,'image')
-        self.decon_daemon_path = os.path.join(self.daemon_path,'deconvolution')
+        if not os.path.exists(self.image_daemon_path):
+            os.mkdir(self.image_daemon_path)
+            os.mkdir(os.path.join(self.image_daemon_path,'input'))
+            os.mkdir(os.path.join(self.image_daemon_path,'output'))
         self.projection_zstart=self.parameters['projection_zstart'] 
         self.projection_k=self.parameters['projection_k']
         self.projection_zskip=self.parameters['projection_zskip'] 
@@ -53,7 +56,7 @@ class Stack_Class(object):
             
     def check_flags(self):
         if self.verbose:
-            tqdm([],desc='Checking Flags')
+            i = [i for i in tqdm([],desc='Checking Flags')]
         self.failed = False
         self.fishdata = FISHData(os.path.join(self.metadata_path,self.parameters['fishdata']))
         #Position
@@ -159,7 +162,7 @@ class Stack_Class(object):
             
     def check_projection(self):
         if self.verbose:
-            print('Checking Projection Zindexes')
+            i = [i for i in tqdm([],desc='Checking Projection Zindexes')]
 #         self.metadata = Metadata(os.path.join(self.metadata_path,self.acq))
         self.image_table = pd.read_csv(os.path.join(self.metadata_path,self.acq,'Metadata.txt'),sep='\t')
         self.len_z = len(self.image_table[(self.image_table.Position==self.posname)].Zindex.unique())

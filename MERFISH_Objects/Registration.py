@@ -3,7 +3,7 @@ import scipy
 import pickle
 import numpy as np
 from tqdm import tqdm
-from skimage import io
+# from skimage import io
 from itertools import repeat
 from metadata import Metadata
 from scipy.spatial import KDTree
@@ -172,6 +172,12 @@ class Registration_Class(object):
     def load_stack(self):
         self.metadata = Metadata(self.metadata_path)
         self.stk = self.metadata.stkread(Position=self.posname,Channel=self.channel,hybe=self.hybe)
+        for i in self.stk.shape[2]:
+            img = self.stk[:,:,i]
+            bkg = gaussian_filter(img,9)
+            img = img.astype(float)-bkg.astype(float)
+            img = gaussian_filter(img,1)
+            self.stk[:,:,i] = img
         if self.two_dimensional:
             self.stk = self.stk.mean(axis=2)
 
@@ -283,7 +289,7 @@ class Registration_Class(object):
             
     def generate_reference_hybe(self):
         if self.verbose:
-            print('Calculating Transformation')
+            i = [i for i in tqdm([],desc='Calculating Transformation')]
         # Need to save these somewhere likely utilities
         self.ref_beadarray = np.stack(self.beads,axis=0)
         self.ref_tree = KDTree(self.ref_beadarray[:, :2])

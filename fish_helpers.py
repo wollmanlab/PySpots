@@ -235,14 +235,26 @@ def progress_update(md,path=False):
     print(len(finished),' Positions Finished')
     print(len(non_finished),' Positions Not Finished')
 
-def Display(image,title='Figure',cmap='inferno',figsize=(10,10),rel_min=0.1,rel_max=99.9,colorbar=False):
+def Display(image,title='',cmap='inferno',figsize=(10,10),
+            rel_min=0.1,rel_max=99.9,
+            abs_min='False',abs_max='False',colorbar=False):
     img = image.copy()
-    if rel_min>0:
-        img_min = np.percentile(img.ravel(),rel_min)
-        img[img<img_min]=img_min
-    if rel_max<100:
-        img_max = np.percentile(img.ravel(),99)
-        img[img>img_max]=img_max
+    if abs_min==0:
+        abs_min = abs_min+0.000000001
+    if abs_max==0:
+        abs_max = abs_max+0.000000001
+    if isinstance(abs_min,str):
+        if rel_min>0:
+            img_min = np.percentile(img.ravel(),rel_min)
+            img[img<img_min]=img_min
+    else:
+        img[img<abs_min]=abs_min
+    if isinstance(abs_max,str):
+        if rel_max<100:
+            img_max = np.percentile(img.ravel(),99)
+            img[img>img_max]=img_max
+    else:
+        img[img>abs_max]=abs_max
     plt.figure(figsize=figsize)
     plt.title(str(title))
     plt.imshow(img,cmap=cmap)
@@ -358,7 +370,10 @@ def Display_mask(mask,figsize=[10,10],title='mask'):
     plt.title(title)
     plt.imshow(colorize_segmented_image(mask))
     plt.show()
-                    
+    
+def visualize_mask(img, color_type='rgb'):
+    return colorize_segmented_image(img, color_type=color_type)
+
 def colorize_segmented_image(img, color_type='rgb'):
     """
     Returns a randomly colorized segmented image for display purposes.

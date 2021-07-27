@@ -13,6 +13,7 @@ from sklearn.metrics import roc_auc_score
 import time
 import torch
 from skimage.measure import regionprops, label
+from sklearn.preprocessing import normalize
 
 class Classify_Class(object):
     def __init__(self,
@@ -46,13 +47,16 @@ class Classify_Class(object):
     def classify(self):
         self.load_configuration()
         self.generate_vectors()
-#         self.load_models()
-        self.initialize_snr_thresh()
-        self.binarize_vectors()
-        self.fit_models()
-        self.call_bits()
-        self.fit_bitmatch()
-#         self.call_bits()
+        if self.parameters['classification_method']=='Logistic':
+            self.initialize_snr_thresh()
+            self.binarize_vectors()
+            self.fit_models()
+            self.call_bits()
+            self.fit_bitmatch()
+        elif self.parameters['classification_method']=='Euclidean':
+            self.euclidean_classify_pixels()
+        else:
+            raise('Unknown classification_method'+self.parameters['classification_method'])
         self.parse_classification()
         self.load_masks()
         self.assign_to_cells()
@@ -63,7 +67,7 @@ class Classify_Class(object):
     def check_flags(self):
         self.failed = False
         if self.verbose:
-            tqdm([],desc='Checking Flag')
+            i = [i for i in tqdm([],desc='Checking Flags')]
         # Classification
         if not self.failed:
             flag = self.fishdata.load_data('flag',dataset=self.dataset,
@@ -128,7 +132,7 @@ class Classify_Class(object):
         self.projection_zend=self.parameters['projection_zend']
         self.projection_function=self.parameters['projection_function']
         if self.verbose:
-            tqdm([],desc='Checking Projection Zindexes')
+            i = [i for i in tqdm([],desc='Checking Projection Zindexes')]
         acq = [i for i in os.listdir(self.metadata_path) if 'hybe1' in i][0]
 #         self.metadata = Metadata(os.path.join(self.metadata_path)
         self.image_table = pd.read_csv(os.path.join(self.metadata_path,acq,'Metadata.txt'),sep='\t')
@@ -174,7 +178,7 @@ class Classify_Class(object):
         
     def load_segmentation(self):
         self.segmentation = torch.zeros([2048,2048,len(self.zindexes)])
-        if self.parameters['two_dimensional']==True:
+        if self.parameters['segment_two_dimensional']:
             mask = self.fishdata.load_data('cytoplasm_mask',dataset=self.dataset,posname=self.posname)
             if not isinstance(mask,type(None)):
                 self.segmentation[:,:,0] = torch.tensor(mask.astype(float))
@@ -188,6 +192,11 @@ class Classify_Class(object):
                 if not isinstance(mask,type(None)):
                     self.segmentation[:,:,i] = torch.tensor(mask.astype(float))
         self.seg_mask = self.segmentation.max(axis=2).values>0
+        if (self.seg_mask).sum()==0:
+            if self.verbose:
+                self.seg_mask = self.seg_mask==False
+                print('No Cells in '+self.posname)
+                """ Fail Position"""
         
     def load_codestack(self,zindex):
         if len(self.hybedata_path)>0:
@@ -286,7 +295,27 @@ class Classify_Class(object):
         bit_calls = (self.vectors>self.snr_thrsh).float()*2 - 1
         bit_match = bit_calls.mm(self.barcodes.t())
         self.init_pixel_indexes,self.init_pixel_labels = (bit_match>=(self.nbits-2)).nonzero(as_tuple=True)
-    
+        
+    def euclidean_classify_pixels(self):
+        mu = self.vectors.mean(1)
+        std = self.vectors.std(1)
+        zscored = (self.vectors-mu)/std
+        norm_vectors = torch.tensor(normalize(zscored))
+        norm_barcodes = torch.tensor(normalize(self.barcodes))
+        cdist = torch.cdist(norm_vectors,norm_barcodes)
+        cdist_min,cdist_index = cdist.min(1)
+        # Set a threshold
+        thresh = 0.52 # a 2 bit error
+        mask = cdist_min>thresh
+        false_mask = torch.tensor(np.isin(cdist_index[mask],self.blank_indexes))
+        correction_bitwise = self.barcodes.shape[0]/self.blank_indexes.shape[0]
+        true_mask = false_mask==False
+        self.false_calls = self.barcodes[cdist_index[mask][false_mask],:].sum(0)
+        self.total_calls = self.barcodes[cdist_index[mask],:].sum(0)
+        self.fpr_bitwise = correction_bitwise*self.false_calls/self.total_calls
+        self.pixel_indexes = torch.where(mask)
+        self.pixel_labels = cdist_index[mask]
+        
     def fit_models(self):
         models = {}
         if self.verbose:
@@ -307,7 +336,7 @@ class Classify_Class(object):
         
     def save_models(self):
         if self.verbose:
-            tqdm([],desc='Saving Models')
+            i = [i for i in tqdm([],desc='Saving Models')]
         self.utilities = Utilities_Class(self.utilities_path)
         self.utilities.save_data(self.models,Dataset=self.dataset,Type='models')
         self.utilities.save_data(self.bitmatch_thresh,Dataset=self.dataset,Type='bitmatch_thresh')
@@ -315,7 +344,7 @@ class Classify_Class(object):
         
     def load_models(self):
         if self.verbose:
-            tqdm([],desc='Loading Models')
+            i = [i for i in tqdm([],desc='Loading Models')]
         self.utilities = Utilities_Class(self.utilities_path)
         self.models = self.utilities.load_data(Dataset=self.dataset,Type='models')
         self.bitmatch_thresh = self.utilities.load_data(Dataset=self.dataset,Type='bitmatch_thresh')
@@ -456,17 +485,33 @@ class Classify_Class(object):
             iterable = enumerate(self.zindexes)
         nuclei_mask = np.zeros([2048,2048,len(self.zindexes)])
         cytoplasm_mask = np.zeros([2048,2048,len(self.zindexes)])
-        for i,z in iterable:
-            nuclei_mask[:,:,i] = self.fishdata.load_data('nuclei_mask',
+        if self.parameters['segment_two_dimensional']:
+            nuclei_mask_2d = self.fishdata.load_data('nuclei_mask',
                                                         dataset=self.dataset,
-                                                        posname=self.posname,
-                                                        zindex=z)
-            cytoplasm_mask[:,:,i] = self.fishdata.load_data('cytoplasm_mask',
+                                                        posname=self.posname)
+            cytoplasm_mask_2d = self.fishdata.load_data('cytoplasm_mask',
                                                         dataset=self.dataset,
-                                                        posname=self.posname,
-                                                        zindex=z)
+                                                        posname=self.posname)
+            for i,z in iterable:
+                nuclei_mask[:,:,i] = nuclei_mask_2d
+                cytoplasm_mask[:,:,i] = cytoplasm_mask_2d
+        else:
+            for i,z in iterable:
+                nuclei_mask[:,:,i] = self.fishdata.load_data('nuclei_mask',
+                                                            dataset=self.dataset,
+                                                            posname=self.posname,
+                                                            zindex=z)
+                cytoplasm_mask[:,:,i] = self.fishdata.load_data('cytoplasm_mask',
+                                                            dataset=self.dataset,
+                                                            posname=self.posname,
+                                                            zindex=z)
         self.nuclei_mask = nuclei_mask
         self.cytoplasm_mask = cytoplasm_mask
+        if np.sum(self.nuclei_mask)==0:
+            # There are no cells
+            if self.verbose:
+                print('No Cells for '+self.posname)
+            
         
     def check_projection(self):
         self.projection_zstart=self.parameters['projection_zstart'] 
@@ -475,7 +520,7 @@ class Classify_Class(object):
         self.projection_zend=self.parameters['projection_zend']
         self.projection_function=self.parameters['projection_function']
         if self.verbose:
-            tqdm([],desc='Checking Projection Zindexes')
+            i = [i for i in tqdm([],desc='Checking Projection Zindexes')]
         # allows faster loading of metadata
         self.acq = [i for i in os.listdir(self.metadata_path) if 'nucstain' in i][0]
         self.metadata = Metadata(os.path.join(self.metadata_path,self.acq))

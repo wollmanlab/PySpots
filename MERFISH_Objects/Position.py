@@ -35,6 +35,10 @@ class Position_Class(object):
         self.normalization_max = self.parameters['normalization_max']
         self.daemon_path = self.parameters['daemon_path']
         self.hybe_daemon_path = os.path.join(self.daemon_path,'hybe')
+        if not os.path.exists(self.hybe_daemon_path):
+            os.mkdir(self.hybe_daemon_path)
+            os.mkdir(os.path.join(self.hybe_daemon_path,'input'))
+            os.mkdir(os.path.join(self.hybe_daemon_path,'output'))
         self.ref_hybe = self.parameters['ref_hybe']
         self.projection_zstart=self.parameters['projection_zstart'] 
         self.projection_k=self.parameters['projection_k']
@@ -62,7 +66,7 @@ class Position_Class(object):
 
     def check_flag(self):
         if self.verbose:
-            tqdm([],desc='Checking Flag')
+            i = [i for i in tqdm([],desc='Checking Flag')]
         flag = self.fishdata.load_data('flag',dataset=self.dataset,posname=self.posname)
         if flag == 'Failed':
             self.failed = True
@@ -72,8 +76,9 @@ class Position_Class(object):
                     
     def check_imaging(self):
         if self.verbose:
-            tqdm([],desc='Checking Imaging')
-        self.started_acqs = [i for i in os.listdir(self.metadata_path) if 'hybe' in i]
+            i = [i for i in tqdm([],desc='Checking Imaging')]
+        self.total_hybes = list(np.unique([hybe for seq,hybe,channel in self.bitmap]))
+        self.started_acqs = [i for i in os.listdir(self.metadata_path) if ('hybe' in i)&(i.split('_')[0] in self.total_hybes)]
         self.nucstain = [i for i in os.listdir(self.metadata_path) if 'nucstain' in i]
         dictionary = {''.join([i+'_' for i in os.listdir(os.path.join(self.metadata_path,self.started_acqs[0],posname_directory))[0][4:].split('_')[:-5]])[:-1]:posname_directory for posname_directory in os.listdir(os.path.join(self.metadata_path,self.started_acqs[0])) if not 'Metadata' in posname_directory}
         
@@ -101,7 +106,7 @@ class Position_Class(object):
                                        posname=self.posname,
                                        channel=self.parameters['nucstain_channel'])
         if self.verbose:
-                tqdm([],desc='Checking Segmentation')
+            i = [i for i in tqdm([],desc='Checking Segmentation')]
         if flag == 'Started':
             do = 'nothing'
         elif flag =='Failed':
@@ -198,7 +203,7 @@ class Position_Class(object):
                                                         hybe=hybe)
     def check_classification(self):
         if self.verbose:
-            tqdm([],desc='Checking Classification')
+            i = [i for i in tqdm([],desc='Checking Classification')]
         flag = self.fishdata.load_data('flag',dataset=self.dataset,
                                        posname=self.posname,hybe='all')
         if isinstance(flag,type(None)):

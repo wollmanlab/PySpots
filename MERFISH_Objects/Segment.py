@@ -107,7 +107,7 @@ class Segment_Class(object):
             
     def check_flags(self):
         if self.verbose:
-            tqdm([],desc='Checking Flags')
+            i = [i for i in tqdm([],desc='Checking Flags')]
         self.failed = False
         #Position
         flag = self.fishdata.load_data('flag',dataset=self.dataset,
@@ -143,7 +143,7 @@ class Segment_Class(object):
         self.projection_zend=self.parameters['projection_zend']
         self.projection_function=self.parameters['projection_function']
         if self.verbose:
-            tqdm([],desc='Checking Projection Zindexes')
+            i = [i for i in tqdm([],desc='Checking Projection Zindexes')]
         self.metadata = Metadata(os.path.join(self.metadata_path,self.acq))
         self.pos_metadata = self.metadata.image_table[(self.metadata.image_table.Position==self.posname)&(self.metadata.image_table.Channel==self.channel)]
         self.len_z = len(self.pos_metadata.Zindex.unique())
@@ -259,7 +259,7 @@ class Segment_Class(object):
         
     def initalize_cellpose(self):
         if self.verbose:
-            tqdm([],desc='Initialize Cellpose')
+            i = [i for i in tqdm([],desc='Initialize Cellpose')]
         self.model = models.Cellpose(model_type=self.cellpose_inputs['model_type'],
                                      gpu=self.cellpose_inputs['gpu'])#,
 #                                      batch_size=self.cellpose_inputs['batch_size'])
@@ -375,7 +375,7 @@ class Segment_Class(object):
 
     def voronoi(self):
         if self.verbose:
-            tqdm([],desc='Voronoi Segment')
+            i = [i for i in tqdm([],desc='Voronoi Segment')]
         inverted_binary_mask_stk = self.mask_stack==0
         distance_mask_stk = dte(inverted_binary_mask_stk,sampling=[self.pixel_size,self.pixel_size,self.z_step_size])
         max_mask_stk = distance_mask_stk<self.distance_thresh

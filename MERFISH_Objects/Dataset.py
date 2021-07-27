@@ -29,13 +29,19 @@ class Dataset_Class(object):
         self.merfish_config = importlib.import_module(self.cword_config)
         self.parameters = self.merfish_config.parameters
         self.daemon_path = self.parameters['daemon_path']
+        if not os.path.exists(self.daemon_path):
+            os.mkdir(self.daemon_path)
         self.position_daemon_path = os.path.join(self.daemon_path,'position')
+        if not os.path.exists(self.position_daemon_path):
+            os.mkdir(self.position_daemon_path)
+            os.mkdir(os.path.join(self.position_daemon_path,'input'))
+            os.mkdir(os.path.join(self.position_daemon_path,'output'))
         self.bitmap = self.merfish_config.bitmap
         self.channels = list(np.unique([channel for seq,hybe,channel in self.bitmap]))
         self.hybes = list(np.unique([hybe for seq,hybe,channel in self.bitmap]))
         self.utilities = Utilities_Class(self.parameters['utilities_path'])
         self.fishdata = FISHData(os.path.join(self.metadata_path,self.parameters['fishdata']))
-
+        
         """ Move To Parameters"""
         self.n_pos = 10
 #         self.nbits = 18
@@ -134,7 +140,7 @@ class Dataset_Class(object):
                     self.globally_optimize_classification()
         else:
             if self.verbose:
-                tqdm([],desc='Global Classification Completed')
+                i = [i for i in tqdm([],desc='Global Classification Completed')]
             
     def find_hot_pixels(self,std_thresh=3,n_acqs=5,kernel_size=3):
         if kernel_size%2==0:

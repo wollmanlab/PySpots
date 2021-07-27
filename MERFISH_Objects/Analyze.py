@@ -109,8 +109,10 @@ if __name__ == '__main__':
     utilities_path = merfish_config.parameters['utilities_path']
     if not os.path.exists(daemon_path):
         os.mkdir(daemon_path)
+        os.chmod(daemon_path, 0o777)
     if not os.path.exists(utilities_path):
         os.mkdir(utilities_path)
+        os.chmod(utilities_path, 0o777)
     dtypes = []
     dataset_daemon_path = os.path.join(daemon_path,'dataset')
 #     if daemon:
@@ -143,13 +145,16 @@ if __name__ == '__main__':
             'verbose':False}
     if not os.path.exists(dataset_daemon_path):
         os.mkdir(dataset_daemon_path)
+        os.chmod(dataset_daemon_path, 0o777)
     if not os.path.exists(os.path.join(dataset_daemon_path,'input')):
         os.mkdir(os.path.join(dataset_daemon_path,'input'))
+        os.chmod(os.path.join(dataset_daemon_path,'input'), 0o777)
     pickle.dump(data,open(os.path.join(dataset_daemon_path,'input',fname),'wb'))
         
     fishdata_path = os.path.join(metadata_path,'fishdata')
     if not os.path.exists(fishdata_path):
         os.mkdir(fishdata_path)
+        os.chmod(fishdata_path, 0o777)
     while not os.path.exists(os.path.join(dataset_daemon_path,'output',fname)):
         p = check_status(os.path.join(metadata_path,'fishdata'))
         sys.stdout.write('\r'+str(datetime.now().strftime("%H:%M:%S"))+' '+p+'                     ')

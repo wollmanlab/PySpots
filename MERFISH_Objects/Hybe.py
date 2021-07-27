@@ -33,7 +33,15 @@ class Hybe_Class(object):
         self.registration_channel = self.parameters['registration_channel']
         self.ref_hybe = self.parameters['ref_hybe']
         self.registration_daemon_path = os.path.join(self.parameters['daemon_path'],'registration')
+        if not os.path.exists(self.registration_daemon_path):
+            os.mkdir(self.registration_daemon_path)
+            os.mkdir(os.path.join(self.registration_daemon_path,'input'))
+            os.mkdir(os.path.join(self.registration_daemon_path,'output'))
         self.stk_daemon_path = os.path.join(self.parameters['daemon_path'],'stack')
+        if not os.path.exists(self.stk_daemon_path):
+            os.mkdir(self.stk_daemon_path)
+            os.mkdir(os.path.join(self.stk_daemon_path,'input'))
+            os.mkdir(os.path.join(self.stk_daemon_path,'output'))
         self.utilities_path = self.parameters['utilities_path']
         
         self.completed = False
@@ -44,7 +52,7 @@ class Hybe_Class(object):
         
     def check_flags(self):
         if self.verbose:
-            tqdm([],desc='Checking Flags')
+            i = [i for i in tqdm([],desc='Checking Flags')]
         self.failed = False
         self.fishdata = FISHData(os.path.join(self.metadata_path,self.parameters['fishdata']))
         #Position
@@ -75,7 +83,7 @@ class Hybe_Class(object):
             
     def check_registration(self):
         if self.verbose:
-            tqdm([],desc='Checking Registration Flags')
+            i = [i for i in tqdm([],desc='Checking Registration Flags')]
         flag =  self.fishdata.load_data('flag',dataset=self.dataset,
                                         posname=self.posname,
                                         hybe=self.hybe,

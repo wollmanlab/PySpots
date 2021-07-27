@@ -64,6 +64,10 @@ class Image_Class(object):
         self.passed = True
         self.daemon_path = self.parameters['daemon_path']
         self.image_daemon_path = os.path.join(self.daemon_path,'image')
+        if not os.path.exists(self.image_daemon_path):
+            os.mkdir(self.image_daemon_path)
+            os.mkdir(os.path.join(self.image_daemon_path,'input'))
+            os.mkdir(os.path.join(self.image_daemon_path,'output'))
         
     def run(self):
         self.check_flags()
@@ -239,7 +243,7 @@ class Image_Class(object):
             self.proceed = False
         elif flag == 'Failed':
             if self.verbose:
-                i = tqdm([],desc='Error with Autofluorescence')
+                i = [i for i in tqdm([],desc='Error with Autofluorescence')]
             self.proceed = False
             """ Error Out """
             self.completed = True
@@ -301,9 +305,13 @@ class Image_Class(object):
         """ Not Implemented since Monochromatic"""
         if self.verbose:
             i = [i for i in tqdm([],desc='Loading Chromatic')]
-        # Not using chromatic since monochromatic
-        self.chromatic_x = np.array(range(self.len_x))#self.chromatic_dict[self.channel]['x']
-        self.chromatic_y = np.array(range(self.len_y))#self.chromatic_dict[self.channel]['y']
+        if len(np.unique([c for r,h,c in self.merfish_config.bitmap]))>1:
+            self.chromatic_x = self.chromatic_dict[self.channel]['x']
+            self.chromatic_y = self.chromatic_dict[self.channel]['y']
+        else:
+            # Not using chromatic since monochromatic
+            self.chromatic_x = np.array(range(self.len_x))#self.chromatic_dict[self.channel]['x']
+            self.chromatic_y = np.array(range(self.len_y))#self.chromatic_dict[self.channel]['y']
         
     def create_hotpixel_kernel(self):
         """ Create the kernel that will correct a hotpixel"""
