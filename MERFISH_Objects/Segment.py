@@ -204,7 +204,8 @@ class Segment_Class(object):
             iterable = tqdm(enumerate(self.zindexes),total=len(self.zindexes),desc='Projecting Nuclear Stack')
         else:
             iterable = enumerate(self.zindexes)
-        proj_stk = np.empty([2048,2048,len(self.zindexes)])
+        # Need to be more flexible
+        proj_stk = np.empty([stk.shape[0],stk.shape[1],len(self.zindexes)])
         self.translation_z = 0 # find beads in future
         for i,zindex in iterable:
             sub_zindexes = list(range(zindex-self.k+self.translation_z,zindex+self.k+self.translation_z+1))
@@ -221,10 +222,9 @@ class Segment_Class(object):
         return image
 
     def process_image(self,image):
-        image = median_filter(image,5)
         image = image-gaussian_filter(image,self.nuclear_blur)
         image[image<0] = 0
-        return np.log10(image+1)
+        return image#np.log10(image+1)
     
     def process_stk(self,stk):
         if self.verbose:
@@ -241,14 +241,20 @@ class Segment_Class(object):
         return np.log10(bsstk.mean(axis=2)+1)
     
     def generate_stk(self):
-        stk = np.empty([2048,2048,len(self.pos_metadata)])
+        stk = ''#np.empty([2048,2048,len(self.pos_metadata)])
         if self.verbose:
             iterable = tqdm(enumerate(self.pos_metadata.filename),total=len(self.pos_metadata),desc='Generating Nuclear Stack')
         else:
             iterable = enumerate(self.pos_metadata.filename)
         """ ensure these are in the right order"""
         for img_idx,fname in iterable:
-            stk[:,:,img_idx]=cv2.imread(os.path.join(fname),-1) # check which is faster
+            if isinstance(stk,str):
+                img = cv2.imread(os.path.join(fname),-1)
+                self.img_shape = img.shape
+                stk = np.empty([self.img_shape[0],self.img_shape[1],len(self.pos_metadata)])
+                stk[:,:,img_idx] = img
+            else:
+                stk[:,:,img_idx]=cv2.imread(os.path.join(fname),-1) # check which is faster
 #             stk[:,:,img_idx]=io.imread(os.path.join(fname))
         if self.two_dimensional:
             self.nuclear_stack = self.process_stk(self.project_image(stk)[:,:,None])
@@ -269,19 +275,19 @@ class Segment_Class(object):
         else:
             iterable = self.nuclear_images
         self.raw_mask_images = []
-        scale = int(2048*self.downsample)
+#         scale = int(2048*self.downsample)
         for image in iterable:
             image = self.process_image(image)
             image = self.normalize_image(image)
             if self.downsample!=1:
-                image = np.array(Image.fromarray(image).resize((scale,scale), Image.NEAREST))
+                image = np.array(Image.fromarray(image).resize((int(self.img_shape[1]*self.downsample),int(self.img_shape[0]*self.downsample)), Image.BICUBIC))
             raw_mask_image,flows,styles,diams = self.model.eval(image,
                                               diameter=self.cellpose_inputs['diameter']*self.downsample,
                                               channels=self.cellpose_inputs['channels'],
                                               flow_threshold=self.cellpose_inputs['flow_threshold'],
                                               cellprob_threshold=self.cellpose_inputs['cellprob_threshold'])
             if self.downsample!=1:
-                 raw_mask_image = np.array(Image.fromarray(raw_mask_image).resize((2048,2048), Image.NEAREST))
+                 raw_mask_image = np.array(Image.fromarray(raw_mask_image).resize((self.img_shape[1],self.img_shape[0]), Image.NEAREST))
             self.raw_mask_images.append(raw_mask_image)
         self.mask_images = self.raw_mask_images
         self.mask_stack = self.images_to_stack(self.mask_images)
@@ -294,8 +300,9 @@ class Segment_Class(object):
     
     def merge_labels_overlap(self,order):
         """ Torch Speed up? """
+        # Need a good way to ensure I am not merging cells
         Input = self.mask_images
-        Output = [np.zeros([2048,2048]) for i in range(self.nZ)]
+        Output = [np.zeros([self.img_shape[0],self.img_shape[1]]) for i in range(self.nZ)]
         used_labels = 0
         if order == 'f':
             if self.verbose:

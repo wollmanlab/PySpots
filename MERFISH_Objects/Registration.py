@@ -1,4 +1,5 @@
 import os
+import torch
 import scipy
 import pickle
 import numpy as np
@@ -168,21 +169,48 @@ class Registration_Class(object):
                 self.check_tforms()
         else:
             self.find_beads()
+            
+    def process_image(self,img):
+        bkg = gaussian_filter(img,9) # Remove Hard Code
+        img = img-bkg
+        img = gaussian_filter(img,1)
+        return img
                 
     def load_stack(self):
         self.metadata = Metadata(self.metadata_path)
-        self.stk = self.metadata.stkread(Position=self.posname,Channel=self.channel,hybe=self.hybe)
-        for i in self.stk.shape[2]:
-            img = self.stk[:,:,i]
-            bkg = gaussian_filter(img,9)
-            img = img.astype(float)-bkg.astype(float)
-            img = gaussian_filter(img,1)
-            self.stk[:,:,i] = img
+        self.stk = self.metadata.stkread(Position=self.posname,Channel=self.channel,hybe=self.hybe).astype(float)
+        if self.verbose:
+            i = [i for i in tqdm(range(self.stk.shape[2]),desc='Loading Stack')]
+        # Find Cells
+        avg = np.mean(self.stk.ravel())
+        mask = self.stk>avg
+        # Filter Out Low Frequency Background
+        # Filter Out High Frequency Noise
+        bkg = self.stk.copy()
+        stk_blur = self.stk.copy()
+        if self.verbose:
+            iterable = tqdm(range(self.stk.shape[2]),desc='Processing Stack')
+        else:
+            iterable = range(self.stk.shape[2])
+        for i in iterable:
+            img = gaussian_filter(self.stk[:,:,i],1) # Move From Hard Code
+            bkg = gaussian_filter(img,4) # Move From Hard Code
+            self.stk[:,:,i] =  img-bkg
+        # Remove Cells (No Beads in Cells)
+        self.stk[mask] = 0
+        # Threshold to prevent False Positive Bead Calls
+        thresh = np.percentile(self.stk.ravel(),99.9)
+        self.stk = self.stk-thresh
+        self.stk[self.stk<0] = 0
+        # Blur to Ensure Clean Center
+        for i in range(self.stk.shape[2]):
+            self.stk[:,:,i] = gaussian_filter(self.stk[:,:,i],2)
         if self.two_dimensional:
             self.stk = self.stk.mean(axis=2)
 
     def generate_template(self):
         #Create Bead Template
+        # Remove Hard Code
         bead = np.zeros((7, 7, 5))
         bead[3, 3, 2] = 1
         bead = gaussian(bead, (1.5, 1.5, 0.85))
@@ -221,13 +249,21 @@ class Registration_Class(object):
         """
 
         self.load_stack()
+        # Find Beads in 2D First
+        img = self.stk.max(2)
+        ref_beads = peak_local_max(img,threshold_abs=np.percentile(img.ravel(),99.9))
+        # Find Beads in 3D
+        z = torch.tensor(self.stk[ref_beads[:,0],ref_beads[:,1],:]).max(1).indices.numpy()
+        ref_beads = np.concatenate([ref_beads.T,z[:,None].T]).T
+        ref_beads = ref_beads.astype(int)
+        ref_beads = [ref_beads[i,:] for i in range(ref_beads.shape[0])]
         self.generate_template()
-        if self.verbose:
-            print('Matching Template')
-        ref_match = match_template(self.stk, self.bead_template, pad_input=True)
-        if self.verbose:
-            print('Finding Peaks')
-        ref_beads = peak_local_max(ref_match, threshold_abs=self.match_threshold)
+#         if self.verbose:
+#             i = [i for i in tqdm([],desc='Matching Template')]
+#         ref_match = match_template(self.stk, self.bead_template, pad_input=True)
+#         if self.verbose:
+#             i = [i for i in tqdm([],desc='Finding Peaks')]
+#         ref_beads = peak_local_max(ref_match, threshold_abs=self.match_threshold)
         subpixel_beads = []
         if self.verbose:
             iterable = tqdm(ref_beads,desc='Finding Subpixel Centers')
@@ -359,15 +395,18 @@ class Registration_Class(object):
         self.db_clusts = self.utilities.load_data(Dataset=self.dataset,Position=self.posname,Hybe=self.ref_hybe,Type='db_clusts')
         if isinstance(self.ref_beadarray,type(None)):
             if self.verbose:
-                print('ref_beadarray is none')
+                i = [i for i in tqdm([],desc='ref_beadarray is none')]
+#                 print('ref_beadarray is none')
             self.load_ref()
         elif isinstance(self.ref_tree,type(None)):
             if self.verbose:
-                print('ref_tree is none')
+                i = [i for i in tqdm([],desc='ref_tree is none')]
+#                 print('ref_tree is none')
             self.load_ref()
         elif isinstance(self.db_clusts,type(None)):
             if self.verbose:
-                print('db_clusts is none')
+                i = [i for i in tqdm([],desc='db_clusts is none')]
+#                 print('db_clusts is none')
             self.load_ref()
         else:
             self.reg_proceed = True
@@ -396,7 +435,8 @@ class Registration_Class(object):
             dest_beads = np.array(dest_beads)
             if len(t_est)<self.dbscan_min_samples:
                 if self.verbose:
-                    print(len(test),'Not enough reference beads found.')
+                    i = [i for i in tqdm([],desc='Not enough reference beads found.')]
+#                     print(len(test),'Not enough reference beads found.')
                 self.passed = False
                 self.fishdata.add_and_save_data('Not enough reference beads found.','log',dataset=self.dataset,posname=self.posname,hybe=self.hybe,channel=self.channel)
                 self.fishdata.add_and_save_data('Failed','flag',dataset=self.dataset,posname=self.posname,hybe=self.hybe,channel=self.channel)
@@ -413,7 +453,8 @@ class Registration_Class(object):
                     most_frequent_cluster = most_frequent_cluster.most_common(1)[0][0]
                 except IndexError:
                     if self.verbose:
-                        print('Index Error')
+                        i = [i for i in tqdm([],desc='Index Error')]
+#                         print('Index Error')
                     self.passed = False
                     self.fishdata.add_and_save_data('Not enough reference beads found.','log',dataset=self.dataset,posname=self.posname,hybe=self.hybe,channel=self.channel)
                     self.fishdata.add_and_save_data('Failed','flag',dataset=self.dataset,posname=self.posname,hybe=self.hybe,channel=self.channel)
@@ -436,7 +477,8 @@ class Registration_Class(object):
                 if opt_t[1]>self.registration_threshold:
                     self.error = 'Residual too high'
                     if self.verbose:
-                        print(self.error)
+                        i = [i for i in tqdm([],desc='str(self.error)')]
+#                         print(self.error)
                     self.passed = False
                     self.fishdata.add_and_save_data('Residual too high '+str(opt_t[1]),'log',dataset=self.dataset,posname=self.posname,hybe=self.hybe,channel=self.channel)
                     self.fishdata.add_and_save_data('Failed','flag',dataset=self.dataset,posname=self.posname,hybe=self.hybe,channel=self.channel)

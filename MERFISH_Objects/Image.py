@@ -282,7 +282,7 @@ class Image_Class(object):
             self.img = self.project_image(self.sub_stk)
         else:
             raise(ValueError('Sub_stk can only by 2 or 3d',self.sub_stk.shape))
-        self.len_x,self.len_y = self.img.shape
+        self.len_y,self.len_x = self.img.shape
         del self.sub_stk
         
     def project_image(self,sub_stk):
@@ -306,8 +306,11 @@ class Image_Class(object):
         if self.verbose:
             i = [i for i in tqdm([],desc='Loading Chromatic')]
         if len(np.unique([c for r,h,c in self.merfish_config.bitmap]))>1:
-            self.chromatic_x = self.chromatic_dict[self.channel]['x']
-            self.chromatic_y = self.chromatic_dict[self.channel]['y']
+            # NEED TO CALCULATE #
+#             self.chromatic_x = self.chromatic_dict[self.channel]['x']
+#             self.chromatic_y = self.chromatic_dict[self.channel]['y']
+            self.chromatic_x = np.array(range(self.len_x))#self.chromatic_dict[self.channel]['x']
+            self.chromatic_y = np.array(range(self.len_y))#self.chromatic_dict[self.channel]['y']
         else:
             # Not using chromatic since monochromatic
             self.chromatic_x = np.array(range(self.len_x))#self.chromatic_dict[self.channel]['x']

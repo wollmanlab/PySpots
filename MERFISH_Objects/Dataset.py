@@ -177,7 +177,8 @@ class Dataset_Class(object):
                     loc = np.where(bkg_sub>thresh)
                     X.extend(loc[0])
                     Y.extend(loc[1])
-        img = np.histogram2d(X,Y,bins=2048,range=[[0,2048],[0,2048]])[0]
+        # Need to Doube Check
+        img = np.histogram2d(X,Y,bins=[img.shape[0],img.shape[1]],range=[[0,img.shape[0]],[0,img.shape[1]]])[0]
         loc = np.where(img>threshold_otsu(img))
         self.utilities.save_data(loc,Dataset=self.dataset,Type='hot_pixels')
 
