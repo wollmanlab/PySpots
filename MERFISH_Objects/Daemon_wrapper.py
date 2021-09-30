@@ -21,7 +21,6 @@ from datetime import datetime
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("dtype", type=str, help="dtype.")
-#     parser.add_argument("cword_config", type=str, help="Name of config file.")
     parser.add_argument("-d", "--daemon_path", type=str, dest="daemon_path", default='/scratch/daemon', action='store', help="daemon_path")
     parser.add_argument("-n", "--ncpu", type=int, dest="ncpu", default=1, action='store', help="Number of cores")
     parser.add_argument("-i", "--interval", type=int, dest="interval", default=1, action='store', help="wait time")
@@ -30,7 +29,6 @@ if __name__ == '__main__':
     args = parser.parse_args()
         
 if __name__ == '__main__':
-#     merfish_config = importlib.import_module(args.cword_config)
     daemon_path = args.daemon_path
     if not os.path.exists:
         os.mkdir(daemon_path)

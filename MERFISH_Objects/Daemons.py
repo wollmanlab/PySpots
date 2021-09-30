@@ -20,7 +20,6 @@ import sys
 from tqdm import tqdm
 import random
 from filelock import Timeout, FileLock
-# import psutil
 
 class Class_Daemon(object):
     def __init__(self,directory_path,interval=60,ncpu=10,position=0,verbose=False,error_verbose=False,reverse=False):
@@ -47,9 +46,7 @@ class Class_Daemon(object):
         thread.start()                                  # Start the execution
         
     def generate_input(self):
-#         self.input = os.listdir(self.input_path)
         self.input = [i for i in os.listdir(self.input_path) if not 'lock' in i]
-#         self.input = list(sorted(self.input, key=lambda f: os.path.getctime("{}/{}".format(self.input_path, f))))
         if self.ncpu>1:
             if not np.isin(self.type,['hybe','stack','position','channel']):
                 if len(self.input)>5000: # prevents multiprocessing from stuggeling with large numbers (temp fix)
@@ -228,9 +225,6 @@ class Decovolution_Daemon(object):
         
     def generate_input(self):
         self.input = list(sorted(os.listdir(self.input_path), key=lambda f: os.path.getctime("{}/{}".format(self.input_path, f))))
-#         self.input = os.listdir(self.input_path)
-#         if len(self.input)>self.ncpu:
-#             self.input = random.sample(self.input,self.ncpu)
         if self.reverse:
             self.input.reverse()
         
@@ -373,9 +367,6 @@ class Image_Daemon(object):
         
     def generate_input(self):
         self.input = list(sorted(os.listdir(self.input_path), key=lambda f: os.path.getctime("{}/{}".format(self.input_path, f))))
-#         self.input = os.listdir(self.input_path)
-#         if len(self.input)>self.ncpu:
-#             self.input = random.sample(self.input,self.ncpu)
         if self.reverse:
             self.input.reverse()
         

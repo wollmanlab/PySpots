@@ -41,12 +41,6 @@ class Dataset_Class(object):
         self.hybes = list(np.unique([hybe for seq,hybe,channel in self.bitmap]))
         self.utilities = Utilities_Class(self.parameters['utilities_path'])
         self.fishdata = FISHData(os.path.join(self.metadata_path,self.parameters['fishdata']))
-        
-        """ Move To Parameters"""
-        self.n_pos = 10
-#         self.nbits = 18
-        self.n_vectors_per_pos = 10**6
-        self.pull_vectors_ncpu = 1
             
         self.completed = False
         self.passed = True
@@ -60,12 +54,13 @@ class Dataset_Class(object):
         self.posnames = self.metadata.image_table[self.metadata.image_table.acq.isin(self.acqs)].Position.unique()
         self.check_hot_pixel()
         self.check_flags()
-        #self.check_classification_flags()
         
     def check_hot_pixel(self):
         self.hotpixel = self.utilities.load_data(Dataset=self.dataset,Type='hot_pixels')
         if isinstance(self.hotpixel,type(None)):
-            self.find_hot_pixels()
+            self.find_hot_pixels(std_thresh=self.parameters['std_thresh'],
+                                 n_acqs=self.parameters['n_acqs'],
+                                 kernel_size=self.parameters['hotpixel_kernel_size'])
             
     def check_flags(self):
         self.flag = self.fishdata.add_and_save_data('Started','flag',dataset=self.dataset)
@@ -113,34 +108,6 @@ class Dataset_Class(object):
             self.fishdata.add_and_save_data('Started','flag',
                                                         dataset=self.dataset,
                                                         posname=posname)
-    def check_classification_flags(self):
-        self.models = self.utilities.load_data(Dataset=self.dataset,Type='models')
-        if isinstance(self.models,type(None)):
-            flag = self.fishdata.load_data('flag',dataset=self.dataset,hybe='all')
-            if flag!='Passed':            
-                if self.verbose:
-                    iterable = tqdm(self.posnames,desc='Checking Classification Flags')
-                else:
-                    iterable = self.posnames
-                self.started = []
-                self.passed = []
-                self.not_started = []
-                self.failed = []
-                for posname in iterable:
-                    flag = self.fishdata.load_data('flag',dataset=self.dataset,posname=posname,hybe='all')
-                    if isinstance(flag,type(None)):
-                        self.not_started.append(posname)
-                    elif flag == 'Started':
-                        self.started.append(posname)
-                    elif flag == 'Passed':
-                        self.passed.append(posname)
-                    elif flag =='Failed':
-                        self.failed.append(posname)
-                if len(self.started)>=self.n_pos: # enough positions for global optimization
-                    self.globally_optimize_classification()
-        else:
-            if self.verbose:
-                i = [i for i in tqdm([],desc='Global Classification Completed')]
             
     def find_hot_pixels(self,std_thresh=3,n_acqs=5,kernel_size=3):
         if kernel_size%2==0:
@@ -181,63 +148,3 @@ class Dataset_Class(object):
         img = np.histogram2d(X,Y,bins=[img.shape[0],img.shape[1]],range=[[0,img.shape[0]],[0,img.shape[1]]])[0]
         loc = np.where(img>threshold_otsu(img))
         self.utilities.save_data(loc,Dataset=self.dataset,Type='hot_pixels')
-
-    def pull_vectors(self,class_class):
-        class_class.load_configuration()
-        class_class.generate_vectors()
-        vectors = class_class.vectors
-        if self.n_vectors_per_pos>vectors.shape[0]:
-            return vectors
-        elif self.n_vectors_per_pos==0:
-            return vectors
-        else:
-            idx = np.random.choice(np.array(range(vectors.shape[0])),self.n_vectors_per_pos)
-            return vectors[idx,:]
-
-    def globally_optimize_classification(self):
-        self.fishdata.add_and_save_data('Started','flag',
-                                            dataset=self.dataset,
-                                            hybe='all')
-        sample_posnames = np.random.choice(self.posnames,self.n_pos)
-        master_vectors = []
-        Input = []
-        for posname in sample_posnames:
-            class_class = Classify_Class(self.metadata_path,
-                                         self.dataset,
-                                         posname,
-                                         self.cword_config,
-                                         verbose=False)
-            Input.append(class_class)
-        if self.pull_vectors_ncpu>1:
-            with multiprocessing.Pool(self.pull_vectors_ncpu) as p:
-                if self.verbose:
-                    iterable = tqdm(enumerate(p.imap(self.pull_vectors,Input)),total=self.n_pos,desc='Loading Vectors')
-                else:
-                    iterable = enumerate(p.imap(self.pull_vectors,Input))
-                for i,vectors in iterable:
-                    master_vectors.append(vectors)
-        else:
-            if self.verbose:
-                iterable = tqdm(enumerate(Input),total=self.n_pos,desc='Loading Vectors')
-            else:
-                iterable = enumerate(Input)
-            for i,class_class in iterable:
-                vectors = self.pull_vectors(class_class)
-                master_vectors.append(vectors)
-        self.master_vectors = torch.cat(master_vectors)
-        self.class_class = Classify_Class(self.metadata_path,
-                                         self.dataset,
-                                         'all',
-                                         self.cword_config,
-                                         verbose=self.verbose)
-        self.class_class.load_configuration()
-        self.class_class.vectors = self.master_vectors
-        self.class_class.initialize_snr_thresh()
-        self.class_class.fit_models()
-        self.class_class.call_bits()
-        self.class_class.fit_bitmatch()
-        self.class_class.save_models()
-        self.models = self.class_class.models
-        self.fishdata.add_and_save_data('Passed','flag',
-                                            dataset=self.dataset,
-                                            hybe='all')

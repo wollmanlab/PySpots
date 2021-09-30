@@ -32,24 +32,13 @@ class Position_Class(object):
         self.merfish_config = importlib.import_module(self.cword_config)
         self.parameters = self.merfish_config.parameters
         self.utilities_path = self.parameters['utilities_path']
-        self.normalization_max = self.parameters['normalization_max']
         self.daemon_path = self.parameters['daemon_path']
         self.hybe_daemon_path = os.path.join(self.daemon_path,'hybe')
         if not os.path.exists(self.hybe_daemon_path):
             os.mkdir(self.hybe_daemon_path)
             os.mkdir(os.path.join(self.hybe_daemon_path,'input'))
             os.mkdir(os.path.join(self.hybe_daemon_path,'output'))
-        self.ref_hybe = self.parameters['ref_hybe']
-        self.projection_zstart=self.parameters['projection_zstart'] 
-        self.projection_k=self.parameters['projection_k']
-        self.projection_zskip=self.parameters['projection_zskip'] 
-        self.projection_zend=self.parameters['projection_zend']
-        self.projection_function=self.parameters['projection_function']
-        self.hybedata_path = os.path.join(self.metadata_path,self.parameters['hybedata'],self.posname)
-        self.nbits = self.merfish_config.nbits
         self.bitmap = self.merfish_config.bitmap
-        self.len_x = 2048
-        self.len_y = 2048
         self.all_hybes = list(np.unique([hybe for seq,hybe,channel in self.bitmap]))
         self.hybe_fnames_list = [str(self.dataset+'_'+self.posname+'_'+hybe+'.pkl') for hybe in self.all_hybes]
         self.fishdata = FISHData(os.path.join(self.metadata_path,self.parameters['fishdata']))
@@ -213,23 +202,6 @@ class Position_Class(object):
             self.fishdata.add_and_save_data('Passed','flag',
                                             dataset=self.dataset,
                                             posname=self.posname)
-#         flag = self.fishdata.load_data('flag',dataset=self.dataset,hybe='all')
-#         if flag == 'Passed':
-#             flag = self.fishdata.load_data('flag',dataset=self.dataset,
-#                                        posname=self.posname,hybe='all')
-#             if flag == 'Started':
-#                 do = 'nothing'
-#             elif flag =='Failed':
-#                 self.fishdata.add_and_save_data('Failed','flag',
-#                                                 dataset=self.dataset,
-#                                                 posname=self.posname)
-#                 self.fishdata.add_and_save_data('Classification Failed','log',
-#                                                 dataset=self.dataset,
-#                                                 posname=self.posname)
-#             elif flag =='Passed':
-#                 self.classification_completed = True
-#             else:
-#                 self.create_classification()
         
     def create_classification(self):
         self.classification_daemon_path = os.path.join(self.daemon_path,'classification')

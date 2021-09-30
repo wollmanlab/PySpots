@@ -31,7 +31,6 @@ class Hybe_Class(object):
         self.bitmap = self.merfish_config.bitmap
         self.parameters = self.merfish_config.parameters
         self.registration_channel = self.parameters['registration_channel']
-        self.ref_hybe = self.parameters['ref_hybe']
         self.registration_daemon_path = os.path.join(self.parameters['daemon_path'],'registration')
         if not os.path.exists(self.registration_daemon_path):
             os.mkdir(self.registration_daemon_path)
@@ -42,7 +41,6 @@ class Hybe_Class(object):
             os.mkdir(self.stk_daemon_path)
             os.mkdir(os.path.join(self.stk_daemon_path,'input'))
             os.mkdir(os.path.join(self.stk_daemon_path,'output'))
-        self.utilities_path = self.parameters['utilities_path']
         
         self.completed = False
         self.passed = True

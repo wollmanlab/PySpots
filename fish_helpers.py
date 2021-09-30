@@ -6,6 +6,7 @@ from metadata import Metadata
 import os
 from fish_results import HybeData
 from collections import defaultdict, Counter
+from scipy.ndimage import gaussian_filter,median_filter
 from scipy import stats
 import seaborn as sns
 from scipy.stats import spearmanr

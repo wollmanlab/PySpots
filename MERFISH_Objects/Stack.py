@@ -166,8 +166,6 @@ class Stack_Class(object):
 #         self.metadata = Metadata(os.path.join(self.metadata_path,self.acq))
         self.image_table = pd.read_csv(os.path.join(self.metadata_path,self.acq,'Metadata.txt'),sep='\t')
         self.len_z = len(self.image_table[(self.image_table.Position==self.posname)].Zindex.unique())
-#         self.len_z = len(self.metadata.image_table[(self.metadata.image_table.Position==self.posname)].Zindex.unique())
-#         del self.metadata
         if self.projection_function=='None':
             self.projection_k = 0
         if self.projection_zstart==-1:

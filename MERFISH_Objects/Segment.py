@@ -68,10 +68,9 @@ class Segment_Class(object):
         self.downsample = self.parameters['segment_downsample'] 
         self.two_dimensional = self.parameters['segment_two_dimensional']
         self.overwrite = self.parameters['segment_overwrite']
-        self.singular_zindex = self.parameters['segment_singular_zindex']
         self.nuclear_blur = self.parameters['segment_nuclear_blur']
-        self.pixel_size = self.parameters['segment_pixel_size']
-        self.z_step_size = self.parameters['segment_z_step_size']
+        self.pixel_size = self.parameters['pixel_size']
+        self.z_step_size = self.parameters['z_step_size']
 
         self.fishdata = FISHData(os.path.join(self.metadata_path,self.parameters['fishdata']))
             
@@ -224,7 +223,7 @@ class Segment_Class(object):
     def process_image(self,image):
         image = image-gaussian_filter(image,self.nuclear_blur)
         image[image<0] = 0
-        return image#np.log10(image+1)
+        return image
     
     def process_stk(self,stk):
         if self.verbose:
@@ -241,7 +240,7 @@ class Segment_Class(object):
         return np.log10(bsstk.mean(axis=2)+1)
     
     def generate_stk(self):
-        stk = ''#np.empty([2048,2048,len(self.pos_metadata)])
+        stk = ''
         if self.verbose:
             iterable = tqdm(enumerate(self.pos_metadata.filename),total=len(self.pos_metadata),desc='Generating Nuclear Stack')
         else:
@@ -255,7 +254,6 @@ class Segment_Class(object):
                 stk[:,:,img_idx] = img
             else:
                 stk[:,:,img_idx]=cv2.imread(os.path.join(fname),-1) # check which is faster
-#             stk[:,:,img_idx]=io.imread(os.path.join(fname))
         if self.two_dimensional:
             self.nuclear_stack = self.process_stk(self.project_image(stk)[:,:,None])
             self.nuclear_images = [self.nuclear_stack]
@@ -275,7 +273,6 @@ class Segment_Class(object):
         else:
             iterable = self.nuclear_images
         self.raw_mask_images = []
-#         scale = int(2048*self.downsample)
         for image in iterable:
             image = self.process_image(image)
             image = self.normalize_image(image)
@@ -386,7 +383,6 @@ class Segment_Class(object):
         inverted_binary_mask_stk = self.mask_stack==0
         distance_mask_stk = dte(inverted_binary_mask_stk,sampling=[self.pixel_size,self.pixel_size,self.z_step_size])
         max_mask_stk = distance_mask_stk<self.distance_thresh
-#         labels = morphology.watershed(image=distance_mask_stk, markers=self.mask_stack,mask=max_mask_stk)
         labels = watershed(image=distance_mask_stk, markers=self.mask_stack,mask=max_mask_stk)
         self.voronoi_stack = labels
         self.voronoi_images = self.stack_to_images(labels)

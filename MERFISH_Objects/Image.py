@@ -47,8 +47,8 @@ class Image_Class(object):
         self.fishdata = FISHData(os.path.join(self.metadata_path,self.parameters['fishdata']))
         
         self.hotpixel = self.utilities.load_data(Dataset=self.dataset,Type='hot_pixels')
-        self.hotpixel_X=self.hotpixel[0]#self.merfish_config.hotpixel_X
-        self.hotpixel_Y=self.hotpixel[1]#self.merfish_config.hotpixel_Y
+        self.hotpixel_X=self.hotpixel[0]
+        self.hotpixel_Y=self.hotpixel[1]
         self.chromatic_dict = self.merfish_config.chromatic_dict
         self.projection_function=self.parameters['projection_function']
         self.dtype=self.parameters['dtype']
@@ -307,14 +307,12 @@ class Image_Class(object):
             i = [i for i in tqdm([],desc='Loading Chromatic')]
         if len(np.unique([c for r,h,c in self.merfish_config.bitmap]))>1:
             # NEED TO CALCULATE #
-#             self.chromatic_x = self.chromatic_dict[self.channel]['x']
-#             self.chromatic_y = self.chromatic_dict[self.channel]['y']
-            self.chromatic_x = np.array(range(self.len_x))#self.chromatic_dict[self.channel]['x']
-            self.chromatic_y = np.array(range(self.len_y))#self.chromatic_dict[self.channel]['y']
+            self.chromatic_x = self.chromatic_dict[self.channel]['x']
+            self.chromatic_y = self.chromatic_dict[self.channel]['y']
         else:
             # Not using chromatic since monochromatic
-            self.chromatic_x = np.array(range(self.len_x))#self.chromatic_dict[self.channel]['x']
-            self.chromatic_y = np.array(range(self.len_y))#self.chromatic_dict[self.channel]['y']
+            self.chromatic_x = np.array(range(self.len_x))
+            self.chromatic_y = np.array(range(self.len_y))
         
     def create_hotpixel_kernel(self):
         """ Create the kernel that will correct a hotpixel"""
@@ -355,7 +353,7 @@ class Image_Class(object):
     def subtract_background(self):
         """ Calculate and Subtract Background """
         # Remove Noise
-        self.img = self.blur('gaussian',0.9) # Move from hard code
+        self.img = self.blur('gaussian',self.blur_kernel) # Move from hard code
         # Remove signal larger than expected
         if self.background_method!='None':
             if self.verbose:

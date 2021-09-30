@@ -86,13 +86,6 @@ class Classify_Class(object):
                                             dataset=self.dataset,
                                             posname=self.posname,
                                             hybe='all')
-#         # Check Global optimization
-#         flag = self.fishdata.load_data('flag',dataset=self.dataset,
-#                                        channel=self.parameters['nucstain_channel'])
-#         if flag == 'Failed': # Entire Dataset will fail here
-#             log = 'Global Optimization Failed'
-#             self.failed = True
-#             self.completed = True
         # Position
         if not self.failed:
             flag = self.fishdata.load_data('flag',dataset=self.dataset,posname=self.posname)
@@ -134,10 +127,8 @@ class Classify_Class(object):
         if self.verbose:
             i = [i for i in tqdm([],desc='Checking Projection Zindexes')]
         acq = [i for i in os.listdir(self.metadata_path) if 'hybe1' in i][0]
-#         self.metadata = Metadata(os.path.join(self.metadata_path)
         self.image_table = pd.read_csv(os.path.join(self.metadata_path,acq,'Metadata.txt'),sep='\t')
         self.len_z = len(self.image_table[(self.image_table.Position==self.posname)].Zindex.unique())
-#         del self.metadata
         if self.projection_function=='None':
             self.projection_k = 0
         if self.projection_zstart==-1:

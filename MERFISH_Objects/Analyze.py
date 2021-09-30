@@ -1,12 +1,3 @@
-# from MERFISH_Objects.Image import *
-# from MERFISH_Objects.Daemons import *
-# from MERFISH_Objects.Stack import *
-# from MERFISH_Objects.Hybe import *
-# from MERFISH_Objects.Deconvolution import *
-# from MERFISH_Objects.Registration import *
-# from MERFISH_Objects.Position import *
-# from MERFISH_Objects.Dataset import *
-# from MERFISH_Objects.FISHData import *
 import dill as pickle
 import argparse
 import shutil
@@ -20,14 +11,6 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("metadata_path", type=str, help="Path to Dataset Directory.")
     parser.add_argument("cword_config", type=str, help="Name of config file.")
-#     parser.add_argument("-D", "--daemon", type=bool, dest="daemon", default=False, action='store', help="Start the Daemon? (True or False)")
-#     parser.add_argument("-nD", "--ncpu_dataset", type=int, dest="ncpu_dataset", default=1, action='store', help="Number of cores for Dataset Daemon")
-#     parser.add_argument("-np", "--ncpu_position", type=int, dest="ncpu_position", default=10, action='store', help="Number of cores for Position Daemon")
-#     parser.add_argument("-nh", "--ncpu_hybe", type=int, dest="ncpu_hybe", default=10, action='store', help="Number of cores for Hybe Daemon")
-#     parser.add_argument("-ns", "--ncpu_stack", type=int, dest="ncpu_stack", default=10, action='store', help="Number of cores for Stack Daemon")
-#     parser.add_argument("-ni", "--ncpu_image", type=int, dest="ncpu_image", default=20, action='store', help="Number of cores for Image Daemon")
-#     parser.add_argument("-nd", "--ncpu_deconvolution", type=int, dest="ncpu_deconvolution", default=1, action='store', help="Number of cores for Deconvolution Daemon")
-#     parser.add_argument("-nr", "--ncpu_registration", type=int, dest="ncpu_registration", default=20, action='store', help="Number of cores for Registration Daemon")
     args = parser.parse_args()
 
 def find_dtype(t):
@@ -96,13 +79,6 @@ if __name__ == '__main__':
     
     metadata_path = args.metadata_path
     cword_config = args.cword_config
-#     daemon = args.daemon
-#     ncpu_dataset = args.ncpu_dataset
-#     ncpu_position = args.ncpu_position
-#     ncpu_hybe = args.ncpu_hybe
-#     ncpu_stack = args.ncpu_stack
-#     ncpu_image = args.ncpu_image
-#     ncpu_registration = args.ncpu_registration
     
     merfish_config = importlib.import_module(cword_config)
     daemon_path = merfish_config.parameters['daemon_path']
@@ -115,23 +91,6 @@ if __name__ == '__main__':
         os.chmod(utilities_path, 0o777)
     dtypes = []
     dataset_daemon_path = os.path.join(daemon_path,'dataset')
-#     if daemon:
-#         dataset_daemon_path = os.path.join(daemon_path,'dataset')
-#         dataset_daemon = Class_Daemon(dataset_daemon_path,verbose=False,interval=60,ncpu=ncpu_dataset)
-#         position_daemon_path = os.path.join(daemon_path,'position')
-#         pos_daemon = Class_Daemon(position_daemon_path,verbose=False,interval=1,ncpu=ncpu_position)
-#         hybe_daemon_path = os.path.join(daemon_path,'hybe')
-#         hyb_daemon = Class_Daemon(hybe_daemon_path,verbose=False,interval=1,ncpu=ncpu_hybe)
-#         registration_daemon_path = os.path.join(daemon_path,'registration')
-#         reg_daemon = Class_Daemon(registration_daemon_path,verbose=False,interval=1,ncpu=ncpu_registration)
-#         stack_daemon_path = os.path.join(daemon_path,'stack')
-#         stk_daemon = Class_Daemon(stack_daemon_path,verbose=False,interval=1,ncpu=ncpu_stack)
-#         image_daemon_path = os.path.join(daemon_path,'image')
-#         img_daemon = Class_Daemon(image_daemon_path,verbose=False,interval=1,ncpu=ncpu_image)
-#         segmentation_daemon_path = os.path.join(daemon_path,'segmentation')
-#         seg_daemon = Class_Daemon(segmentation_daemon_path,verbose=False,interval=1,ncpu=ncpu_seq)
-#         classification_daemon_path = os.path.join(daemon_path,'classification')
-#         classification_daemon = Class_Daemon(classification_daemon_path,verbose=False,interval=1,ncpu=ncpu_classification)
         
     if metadata_path[-1]=='/':
         dataset = metadata_path.split('/')[-2]
