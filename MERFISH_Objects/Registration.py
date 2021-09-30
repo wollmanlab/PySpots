@@ -171,7 +171,9 @@ class Registration_Class(object):
         img = self.remove_hotpixels(img)
         img = gaussian_filter(img,self.image_blur_kernel)
         bkg = gaussian_filter(img,self.image_background_kernel)
-        return img-bkg
+        img = img-bkg
+        img[img<0] = 0
+        return img
     
     def create_hotpixel_kernel(self):
         """ Create the kernel that will correct a hotpixel"""
@@ -191,9 +193,7 @@ class Registration_Class(object):
         self.stk = self.metadata.stkread(Position=self.posname,Channel=self.channel,hybe=self.hybe).astype(float)
         if self.verbose:
             i = [i for i in tqdm(range(self.stk.shape[2]),desc='Loading Stack')]
-        # Find Cells
-        avg = np.mean(self.stk.ravel())
-        mask = self.stk>avg
+        # Should add a way to exclude cells from bead find
         # Filter Out Low Frequency Background
         # Filter Out High Frequency Noise
         self.create_hotpixel_kernel()
@@ -202,9 +202,7 @@ class Registration_Class(object):
         else:
             iterable = range(self.stk.shape[2])
         for i in iterable:
-            self.stk[:,:,i] =  process_image(self.stk[:,:,i])
-        # Remove Cells (No Beads in Cells)
-        self.stk[mask] = 0
+            self.stk[:,:,i] =  self.process_image(self.stk[:,:,i])
         # Threshold to prevent False Positive Bead Calls
         thresh = np.percentile(self.stk.ravel(),99.9)
         self.stk = self.stk-thresh
