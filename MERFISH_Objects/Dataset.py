@@ -41,7 +41,7 @@ class Dataset_Class(object):
         self.hybes = list(np.unique([hybe for seq,hybe,channel in self.bitmap]))
         self.utilities = Utilities_Class(self.parameters['utilities_path'])
         self.fishdata = FISHData(os.path.join(self.metadata_path,self.parameters['fishdata']))
-            
+        self.n_pos = 10
         self.completed = False
         self.passed = True
         
