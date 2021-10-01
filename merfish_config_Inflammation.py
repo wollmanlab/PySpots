@@ -113,7 +113,6 @@ parameters['registration_channel']='DeepBlue' # What channel has your fiduciary 
 parameters['registration_method'] = 'beads' # What method of registration to use (bead or image)
 parameters['registration_image_blur_kernel'] = 1 # What size kernel to blur image with
 parameters['registration_image_background_kernel'] = 20 # What size kernel to calculte background
-
 """ Stack """
 
 """ Image """
@@ -125,9 +124,9 @@ parameters['projection_function']='mean' # Which method to use to project (typic
 parameters['dtype_rel_min']=0 # when converting dtypes this amount in percentile will be set to 0
 parameters['dtype_rel_max']=100 # when converting dtypes this amount in percentile will be set to max
 parameters['dtype']='uint16' # dtype to save in
-parameters['background_kernel']=9 # size of kernel for background in pixels (ideally just larger than spots)
-parameters['blur_kernel']=1 # amount to blur your image to smooth out noise
-parameters['background_method']='median' # method to calculate background
+parameters['background_kernel']=8 # size of kernel for background in pixels (ideally just larger than spots)
+parameters['blur_kernel']=0.5 # amount to blur your image to smooth out noise
+parameters['background_method']='gaussian' # method to calculate background
 parameters['blur_method']='gaussian' # method to smooth image
 parameters['deconvolution_niterations']=10 # How many rounds of deconvolution to perform
 parameters['deconvolution_batches']=10 # how many batches to break up the computation into
