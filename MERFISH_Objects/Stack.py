@@ -178,7 +178,7 @@ class Stack_Class(object):
         elif self.projection_zend>self.len_z:
             print('zend of ',self.projection_zend,' is larger than stk range of', self.len_z)
             raise(ValueError('Projection Error'))
-        elif zend<zstart:
+        elif self.projection_zend<self.projection_zstart:
             print('zstart of ',self.projection_zstart,' is larger than zend of', self.projection_zend)
             raise(ValueError('Projection Error'))
         self.zindexes = np.array(range(self.projection_zstart,self.projection_zend,self.projection_zskip))
