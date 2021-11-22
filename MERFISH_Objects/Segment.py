@@ -69,8 +69,8 @@ class Segment_Class(object):
         self.two_dimensional = self.parameters['segment_two_dimensional']
         self.overwrite = self.parameters['segment_overwrite']
         self.nuclear_blur = self.parameters['segment_nuclear_blur']
-        self.pixel_size = self.parameters['pixel_size']
-        self.z_step_size = self.parameters['z_step_size']
+        self.pixel_size = self.parameters['segment_pixel_size']
+        self.z_step_size = self.parameters['segment_z_step_size']
 
         self.fishdata = FISHData(os.path.join(self.metadata_path,self.parameters['fishdata']))
             
@@ -231,7 +231,7 @@ class Segment_Class(object):
         else:
             iterable = range(stk.shape[2])
         stk = stk.astype(float)
-        bstk = stk.copy()
+        bstk = np.zeros_like(stk)
         for i in iterable:
             img = stk[:,:,i]
             bstk[:,:,i] = gaussian_filter(img,self.nuclear_blur)
@@ -247,15 +247,15 @@ class Segment_Class(object):
             iterable = enumerate(self.pos_metadata.filename)
         """ ensure these are in the right order"""
         for img_idx,fname in iterable:
+            img = cv2.imread(os.path.join(fname),-1).astype(float)
+            self.img_shape = img.shape
+            img = self.process_image(img)
             if isinstance(stk,str):
-                img = cv2.imread(os.path.join(fname),-1)
                 self.img_shape = img.shape
                 stk = np.empty([self.img_shape[0],self.img_shape[1],len(self.pos_metadata)])
-                stk[:,:,img_idx] = img
-            else:
-                stk[:,:,img_idx]=cv2.imread(os.path.join(fname),-1) # check which is faster
+            stk[:,:,img_idx]=img
         if self.two_dimensional:
-            self.nuclear_stack = self.process_stk(self.project_image(stk)[:,:,None])
+            self.nuclear_stack = self.project_image(stk)#self.process_stk(self.project_image(stk)[:,:,None])
             self.nuclear_images = [self.nuclear_stack]
         else:
             self.nuclear_stack = self.project_stk(stk)
@@ -274,7 +274,8 @@ class Segment_Class(object):
             iterable = self.nuclear_images
         self.raw_mask_images = []
         for image in iterable:
-            image = self.process_image(image)
+            # if not self.two_dimensional:
+            #     image = self.process_image(image)
             image = self.normalize_image(image)
             if self.downsample!=1:
                 image = np.array(Image.fromarray(image).resize((int(self.img_shape[1]*self.downsample),int(self.img_shape[0]*self.downsample)), Image.BICUBIC))

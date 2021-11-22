@@ -16,33 +16,46 @@ from hybescope_config.microscope_config import *
 
 """ Order in which the barcode was imaged and with which color"""
 bitmap = [('RS0095_cy5', 'hybe1', 'FarRed'),
-         ('RS0109_cy5', 'hybe2', 'FarRed'),
-         ('RS0175_cy5', 'hybe3', 'FarRed'),
-         ('RS0237_cy5', 'hybe4', 'FarRed'),
-         ('RS0307_cy5', 'hybe5', 'FarRed'),
-         ('RS0332_cy5', 'hybe6', 'FarRed'),
-         ('RS0384_atto565', 'hybe10', 'FarRed'),
-         ('RS0406_atto565', 'hybe11', 'FarRed'),
-         ('RS0451_atto565', 'hybe12', 'FarRed'),
-         ('RS0468_atto565', 'hybe13', 'FarRed'),
-         ('RS0548_atto565', 'hybe14', 'FarRed'),
-         ('RS64.0_atto565', 'hybe15', 'FarRed'),
-         ('RS156.0_alexa488', 'hybe19', 'FarRed'),
-         ('RS278.0_alexa488', 'hybe20', 'FarRed'),
-         ('RS313.0_alexa488', 'hybe21', 'FarRed'),
-         ('RS643.0_alexa488', 'hybe22', 'FarRed'),
-         ('RS740.0_alexa488', 'hybe23', 'FarRed'),
-         ('RS810.0_alexa488', 'hybe24', 'FarRed'),
-         ('RSN9927.0_cy5', 'hybe7', 'FarRed'),
-         ('RSN2336.0_cy5', 'hybe8', 'FarRed'),
-         ('RSN1807.0_cy5', 'hybe9', 'FarRed'),
-         ('RSN4287.0_atto565', 'hybe16', 'FarRed'),
-         ('RSN1252.0_atto565', 'hybe17', 'FarRed'),
-         ('RSN9535.0_atto565', 'hybe18', 'FarRed')]
+            ('RS0109_cy5', 'hybe2', 'FarRed'),
+            ('RS0175_cy5', 'hybe3', 'FarRed'),
+            ('RS0237_cy5', 'hybe4', 'FarRed'),
+            ('RS0307_cy5', 'hybe5', 'FarRed'),
+            ('RS0332_cy5', 'hybe6', 'FarRed'),
+            ('RSN9927.0_cy5', 'hybe7', 'FarRed'),
+            ('RSN2336.0_cy5', 'hybe8', 'FarRed'),
+            ('RSN1807.0_cy5', 'hybe9', 'FarRed'),
+            ('RS0384_cy5', 'hybe10', 'FarRed'),
+            ('RS0406_cy5', 'hybe11', 'FarRed'),
+            ('RS0451_cy5', 'hybe12', 'FarRed'),
+            ('RS0468_cy5', 'hybe13', 'FarRed'),
+            ('RS0548_cy5', 'hybe14', 'FarRed'),
+            ('RS64.0_cy5', 'hybe15', 'FarRed'),
+            ('RSN4287.0_cy5', 'hybe16', 'FarRed'),
+            ('RSN1252.0_cy5', 'hybe17', 'FarRed'),
+            ('RSN9535.0_cy5', 'hybe18', 'FarRed')]
+
+bitmap = [('RS0095_cy5', 'hybe1', 'FarRed'),
+            ('RS0109_cy5', 'hybe2', 'FarRed'),
+            ('RS0175_cy5', 'hybe3', 'FarRed'),
+            ('RS0237_cy5', 'hybe4', 'FarRed'),
+            ('RS0307_cy5', 'hybe5', 'FarRed'),
+            ('RS0332_cy5', 'hybe6', 'FarRed'),
+            ('RSN9927.0_cy5', 'hybe7', 'FarRed'),
+            ('RSN2336.0_cy5', 'hybe8', 'FarRed'),
+            ('RSN1807.0_cy5', 'hybe9', 'FarRed'),
+            ('RS0384_atto565', 'hybe10', 'FarRed'),
+            ('RS0406_atto565', 'hybe11', 'FarRed'),
+            ('RS0451_atto565', 'hybe12', 'FarRed'),
+            ('RS0468_atto565', 'hybe13', 'FarRed'),
+            ('RS0548_atto565', 'hybe14', 'FarRed'),
+            ('RS64.0_atto565', 'hybe15', 'FarRed'),
+            ('RSN4287.0_atto565', 'hybe16', 'FarRed'),
+            ('RSN1252.0_atto565', 'hybe17', 'FarRed'),
+            ('RSN9535.0_atto565', 'hybe18', 'FarRed')]
 nbits = len(bitmap)
 
 """ For Loading the Codebook"""
-codebook_pth = '/bigstore/binfo/Codebooks/BMDM_Codebook_V1.txt'
+codebook_pth = '/bigstore/binfo/Codebooks/TBI_Hippocampus_Codebook.txt'
 def load_codebook(fname):
     barcodes = []
     with open(fname, 'r') as f:
@@ -97,7 +110,7 @@ parameters['utilities_path']='/scratch/utilities/' # Where to save temporary fil
 parameters['fishdata']='fishdata' #Directory Name for Processed Data >Bigstore>Images[Year]>User.Project>Dataset>fishdata
 parameters['verbose']=False # If you want print statements (Mostly for diagnostics)
 parameters['two_dimensional']=False #Work in 2 or 3 dimensions
-parameters['pixel_size'] = 0.103 # size of pixel in um
+parameters['pixel_size'] = 0.083 # size of pixel in um
 parameters['z_step_size'] = 0.4 # size of step in Z um
 """ Dataset """
 parameters['hotpixel_kernel_size']=3 # Size of window to calculate hot pixel
@@ -131,7 +144,7 @@ parameters['projection_function']='mean' # Which method to use to project (typic
 parameters['dtype_rel_min']=0 # when converting dtypes this amount in percentile will be set to 0
 parameters['dtype_rel_max']=100 # when converting dtypes this amount in percentile will be set to max
 parameters['dtype']='uint16' # dtype to save in
-parameters['background_kernel']=8 # size of kernel for background in pixels (ideally just larger than spots)
+parameters['background_kernel']=2 # size of kernel for background in pixels (ideally just larger than spots)
 parameters['blur_kernel']=0.5 # amount to blur your image to smooth out noise
 parameters['background_method']='gaussian' # method to calculate background
 parameters['blur_method']='gaussian' # method to smooth image
@@ -150,7 +163,7 @@ parameters['segment_distance_thresh'] = 10 # distance to dialate cell in um
 parameters['segment_model_type']="nuclei" # cellpose model type
 parameters['segment_gpu'] = False # use gpu?
 parameters['segment_batch_size'] = 8 # how many batches to break up calculation
-parameters['segment_diameter'] = 90.0 # size of cell in pixels
+parameters['segment_diameter'] = 120.0 # size of cell in pixels
 parameters['segment_channels'] = [0,0] # grey scale for cellpose
 parameters['segment_flow_threshold'] = 1 # cellpose parameters
 parameters['segment_cellprob_threshold'] = 0 # cellpose parameters
@@ -159,6 +172,7 @@ parameters['segment_two_dimensional'] = True#False # perform in 2D or 3D
 parameters['segment_overwrite'] = False # Overwrite previous segmentation?
 parameters['segment_nuclear_blur'] = 300 # sigma in pixels for background
 parameters['segment_z_step_size'] = 0.4
+parameters['segment_pixel_size'] = 0.083
 """ Classify """
 parameters['match_thresh'] = -2 # how many mismatched bits to be called a barcode
 parameters['fpr_thresh'] = 0.4 # euclidean distance from barcodes to be called

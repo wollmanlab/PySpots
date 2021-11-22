@@ -252,7 +252,7 @@ def Display(image,title='',cmap='inferno',figsize=(10,10),
         img[img<abs_min]=abs_min
     if isinstance(abs_max,str):
         if rel_max<100:
-            img_max = np.percentile(img.ravel(),99)
+            img_max = np.percentile(img.ravel(),rel_max)
             img[img>img_max]=img_max
     else:
         img[img>abs_max]=abs_max

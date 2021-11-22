@@ -58,6 +58,7 @@ class Image_Class(object):
         self.blur_method=self.parameters['blur_method']
         self.hotpixel_kernel_size=self.parameters['hotpixel_kernel_size']
         self.utilities_path = self.parameters['utilities_path']
+        self.overwrite = False
         self.verbose = verbose
         self.proceed = True
         self.completed = False
@@ -166,12 +167,14 @@ class Image_Class(object):
 #             if not self.hybe=='nucstain':
 #                 self.subtract_autofluorescence()
             self.save_data()
-        
+    
     def load_data(self):
         if self.verbose:
             i = [i for i in tqdm([],desc='Loading Metadata')]
 #         if not self.hybe=='nucstain':
 #             self.check_autofluorescence() # Needs to be done first
+        if self.overwrite:
+            self.proceed = True
         if self.proceed:
             # Load Metadata
             self.metadata = Metadata(os.path.join(self.metadata_path,self.acq))
@@ -186,7 +189,7 @@ class Image_Class(object):
 #                 self.translation = {'x':0,'y':0,'z':0}
             self.translation_x = self.translation['x']
             self.translation_y = self.translation['y']
-            self.translation_z = int(round(self.translation['z']))
+            self.translation_z = 0#int(round(self.translation['z']))
             self.k = self.parameters['projection_k']
             if self.two_dimensional:
                 zindexes = [0]

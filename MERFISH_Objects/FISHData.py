@@ -9,6 +9,7 @@ import os
 import pandas as pd
 import numpy as np
 import itertools as it
+import anndata
 
 class FISHData(object):
     def __init__(self, base_path, file_name='fishdata.csv'):
@@ -33,6 +34,8 @@ class FISHData(object):
             ftype = '.tif'
         elif dtype == 'cytoplasm_mask':
             ftype = '.tif'
+        elif dtype == 'total_mask':
+            ftype = '.tif'
         elif dtype == 'beads':
             ftype = '.csv'
         elif dtype == 'tforms':
@@ -43,6 +46,8 @@ class FISHData(object):
             ftype = '.csv'
         elif dtype == 'counts':
             ftype = '.csv'
+        elif dtype == 'h5ad':
+            ftype = '.h5ad'
         else:
             ftype = '.npy'
         fname = "{0}_{1}_{2}_{3}_{4}_{5}{6}".format(dataset,posname,hybe,channel,zindex,dtype,ftype)
@@ -82,6 +87,9 @@ class FISHData(object):
         elif dtype == 'cytoplasm_mask':
             cv2.imwrite(fname, data.astype('uint16'))
 #             tifffile.imsave(fname, data.astype('int16'))
+        elif dtype == 'total_mask':
+            cv2.imwrite(fname, data.astype('uint16'))
+#             tifffile.imsave(fname, data.astype('int16'))
         elif dtype == 'beads':
             pd.DataFrame(data).to_csv(fname)
         elif dtype == 'tforms':
@@ -95,6 +103,8 @@ class FISHData(object):
         elif dtype == 'image':
             cv2.imwrite(fname, data.astype('uint16'))
 #             tifffile.imsave(fname, data.astype('uint16'))
+        elif dtype == 'h5ad':
+            data.write(filename=fname)
         else:
             np.save(fname,data)
         return True
@@ -132,6 +142,9 @@ class FISHData(object):
                 elif dtype == 'cytoplasm_mask':
                     dout = cv2.imread(full_fname,-1).astype('int16')
 #                     dout = tifffile.imread(full_fname).astype('int16')
+                elif dtype == 'total_mask':
+                    dout = cv2.imread(full_fname,-1).astype('int16')
+#                     dout = tifffile.imread(full_fname).astype('int16')
                 elif dtype == 'beads':
                     dout = np.array(pd.read_csv(full_fname,index_col=0))
                 elif dtype == 'tforms':
@@ -143,6 +156,8 @@ class FISHData(object):
                     dout = pd.read_csv(full_fname,index_col=0)
                 elif dtype == 'counts':
                     dout = pd.read_csv(full_fname,index_col=0)
+                elif dtype == 'h5ad':
+                    dout = anndata.read_h5ad(full_fname)
                 else:
                     try:
                         dout = np.load(full_fname)

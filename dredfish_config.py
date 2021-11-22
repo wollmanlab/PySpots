@@ -19,30 +19,30 @@ from sklearn.preprocessing import normalize
 from hybescope_config.microscope_config import *
 
 # Basic parameters of imaging
-bitmap = [('RS0109_cy5', 'hybe1', 'FarRed'),
-          ('RS0175_cy5', 'hybe2', 'FarRed'),
-          ('RS0237_cy5', 'hybe3', 'FarRed'),
-          ('RS0307_cy5', 'hybe4', 'FarRed'),
-          ('RS0332_cy5', 'hybe5', 'FarRed'),
-          ('RS0384_atto565', 'hybe6', 'FarRed'),
-          ('RS0406_atto565', 'hybe7', 'FarRed'),
-          ('RS0451_atto565', 'hybe8', 'FarRed'),
-          ('RS0468_atto565', 'hybe9', 'FarRed'),
-          ('RS0548_atto565', 'hybe10', 'FarRed'),
-          ('RS64.0_atto565', 'hybe11', 'FarRed'),
-          ('RS156.0_alexa488', 'hybe12', 'FarRed'),
-          ('RS278.0_alexa488', 'hybe13', 'FarRed'),
-          ('RS313.0_alexa488', 'hybe14', 'FarRed'),
-          ('RS643.0_alexa488', 'hybe15', 'FarRed'),
-          ('RS740.0_alexa488', 'hybe16', 'FarRed'),
-          ('RS810.0_alexa488', 'hybe17', 'FarRed'),
-          ('RSN9927.0_cy5', 'hybe18', 'FarRed'),
-          ('RSN2336.0_cy5', 'hybe19', 'FarRed'),
-          ('RSN1807.0_cy5', 'hybe20', 'FarRed'),
-          ('RSN4287.0_atto565', 'hybe21', 'FarRed'),
-          ('RSN1252.0_atto565', 'hybe22', 'FarRed'),
-          ('RSN9535.0_atto565', 'hybe23', 'FarRed'),
-          ('RS0095_cy5', 'hybe24', 'FarRed')]
+bitmap = [('RS0109_cy5', 'hybe2', 'FarRed'),
+         ('RS0175_cy5', 'hybe3', 'FarRed'),
+         ('RS0237_cy5', 'hybe4', 'FarRed'),
+         ('RS0307_cy5', 'hybe5', 'FarRed'),
+         ('RS0332_cy5', 'hybe6', 'FarRed'),
+         ('RS0384_atto565', 'hybe10', 'FarRed'),
+         ('RS0406_atto565', 'hybe11', 'FarRed'),
+         ('RS0451_atto565', 'hybe12', 'FarRed'),
+         ('RS0468_atto565', 'hybe13', 'FarRed'),
+         ('RS0548_atto565', 'hybe14', 'FarRed'),
+         ('RS64.0_atto565', 'hybe15', 'FarRed'),
+         ('RS156.0_alexa488', 'hybe19', 'FarRed'),
+         ('RS278.0_alexa488', 'hybe20', 'FarRed'),
+         ('RS313.0_alexa488', 'hybe21', 'FarRed'),
+         ('RS643.0_alexa488', 'hybe22', 'FarRed'),
+         ('RS740.0_alexa488', 'hybe23', 'FarRed'),
+         ('RS810.0_alexa488', 'hybe24', 'FarRed'),
+         ('RSN9927.0_cy5', 'hybe7', 'FarRed'),
+         ('RSN2336.0_cy5', 'hybe8', 'FarRed'),
+         ('RSN1807.0_cy5', 'hybe9', 'FarRed'),
+         ('RSN4287.0_atto565', 'hybe16', 'FarRed'),
+         ('RSN1252.0_atto565', 'hybe17', 'FarRed'),
+         ('RSN9535.0_atto565', 'hybe18', 'FarRed'),
+              ('RS0095_cy5', 'hybe1', 'FarRed')]
 
 # depricated_bitmap = [('RS0095_cy5', 'hybe2', 'FarRed'), ('RS0109_cy5', 'hybe4', 'FarRed'),
 #           ('RS0175_cy5', 'hybe6', 'FarRed'), ('RS0237_cy5', 'hybe1', 'FarRed'),
@@ -211,8 +211,9 @@ parameters['daemon_path']='/scratch/daemon/'
 parameters['utilities_path']='/scratch/utilities/'
 parameters['floor']=True
 parameters['2D']=True
-parameters['nucstain_acq'] = 'nucstain'
-
+parameters['nucstain_acq'] = 'infer'
+parameters['total_channel'] = 'FarRed'
+parameters['overwrite'] = True
 parameters['segment_projection_function'] = 'mean'
 parameters['segment_min_size'] = 1000
 parameters['segment_overlap_threshold'] = 0.3
@@ -220,9 +221,9 @@ parameters['segment_pixel_thresh'] = 10**3#10**4
 parameters['segment_z_thresh'] = 0#5
 parameters['segment_distance_thresh'] = 10
 parameters['segment_model_type']="nuclei"
-parameters['segment_gpu'] = False
+parameters['segment_gpu'] = True
 parameters['segment_batch_size'] = 8
-parameters['segment_diameter'] = 90.0
+parameters['segment_diameter'] = 10.0#90.0
 parameters['segment_channels'] = [0,0]
 parameters['segment_flow_threshold'] = 1
 parameters['segment_cellprob_threshold'] = 0
@@ -231,8 +232,11 @@ parameters['segment_two_dimensional'] = True#False
 parameters['segment_overwrite'] = False
 parameters['segment_singular_zindex'] = -1
 parameters['segment_nuclear_blur'] = 300
-parameters['segment_pixel_size'] = 0.103
+parameters['segment_pixel_size'] = 0.326#0.103
 parameters['segment_z_step_size'] = 0.4
+
+parameters['camera_direction'] = [-1,-1]
+parameters['total_acq'] = 'infer'
         
 parameters['match_thresh'] = -2
 parameters['fpr_thresh'] = 0.2

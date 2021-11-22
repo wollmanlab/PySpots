@@ -3,6 +3,7 @@ import torch
 import scipy
 import pickle
 import numpy as np
+import trackpy as tp
 from tqdm import tqdm
 # from skimage import io
 from itertools import repeat
@@ -52,6 +53,7 @@ class Registration_Class(object):
         self.image_background_kernel = self.parameters['registration_image_background_kernel']
         self.utilities_path = self.parameters['utilities_path']
         self.ref_hybe = self.parameters['ref_hybe']
+        self.subpixel_method = self.parameters['subpixel_method']
         self.utilities = Utilities_Class(self.utilities_path)
         self.hotpixel = self.utilities.load_data(Dataset=self.dataset,Type='hot_pixels')
         self.hotpixel_X=self.hotpixel[0]
@@ -169,9 +171,9 @@ class Registration_Class(object):
             
     def process_image(self,img):
         img = self.remove_hotpixels(img)
-        img = gaussian_filter(img,self.image_blur_kernel)
         bkg = gaussian_filter(img,self.image_background_kernel)
         img = img-bkg
+        img = gaussian_filter(img,self.image_blur_kernel)
         img[img<0] = 0
         return img
     
@@ -204,12 +206,12 @@ class Registration_Class(object):
         for i in iterable:
             self.stk[:,:,i] =  self.process_image(self.stk[:,:,i])
         # Threshold to prevent False Positive Bead Calls
-        thresh = np.percentile(self.stk.ravel(),99.9)
-        self.stk = self.stk-thresh
-        self.stk[self.stk<0] = 0
-        # Blur to Ensure Clean Center
-        for i in range(self.stk.shape[2]):
-            self.stk[:,:,i] = gaussian_filter(self.stk[:,:,i],2)
+        # thresh = np.percentile(self.stk.ravel(),99.9)
+        # self.stk = self.stk-thresh
+        # self.stk[self.stk<0] = 0
+        # # Blur to Ensure Clean Center
+        # for i in range(self.stk.shape[2]):
+        #     self.stk[:,:,i] = gaussian_filter(self.stk[:,:,i],2)
         if self.two_dimensional:
             self.stk = self.stk.mean(axis=2)
 
@@ -255,61 +257,121 @@ class Registration_Class(object):
 
         self.load_stack()
         # Find Beads in 2D First
-        img = self.stk.max(2)
-        ref_beads = peak_local_max(img,threshold_abs=np.percentile(img.ravel(),99.9))
-        # Find Beads in 3D
-        z = torch.tensor(self.stk[ref_beads[:,0],ref_beads[:,1],:]).max(1).indices.numpy()
-        ref_beads = np.concatenate([ref_beads.T,z[:,None].T]).T
-        ref_beads = ref_beads.astype(int)
-        ref_beads = [ref_beads[i,:] for i in range(ref_beads.shape[0])]
-        self.generate_template()
+        img = self.stk.mean(2) # Mean is more robust to noise and out of focus light
+        img = img-img.mean()
+        img = img/img.std()
+        img[img<2] = 2 # must be more than 4 std from mean to be considered bead
+        # thresh = np.percentile(img.ravel(),90)
+        # img[img<thresh] = thresh
+        self.features = tp.locate(img, diameter=(15,15),separation=20) # Move from hard code
+        
         subpixel_beads = []
-        if self.verbose:
-            iterable = tqdm(ref_beads,desc='Finding Subpixel Centers')
-        else:
-            iterable = ref_beads
-        if self.two_dimensional:
-            for y, x in iterable:
-                substk = self.stk[y-5:y+6, x-5:x+6]
-                if substk.shape[0] != 11 or substk.shape[1] != 11:
-                    continue # candidate too close to edge
-                try:
-                    upsamp_substk = resize(substk,
-                                           (substk.shape[0]*self.upsamp_factor,
-                                            substk.shape[1]*self.upsamp_factor),
-                                            mode='constant',anti_aliasing=False)
-                except:
-                    continue
-                bead_match = match_template(upsamp_substk,
-                                            self.upsamp_bead, pad_input=True)
-                yu, xu = np.where(bead_match==bead_match.max())
-                yu = (yu[0]-int(upsamp_substk.shape[0]/2))/self.upsamp_factor
-                xu = (xu[0]-int(upsamp_substk.shape[1]/2))/self.upsamp_factor
-                ys, xs = (yu+y, xu+x)
-                subpixel_beads.append((ys, xs,0))
-        else:
-            for y, x, z in iterable:
-                substk = self.stk[y-5:y+6, x-5:x+6, z-2:z+3]
-                if substk.shape[0] != 11 or substk.shape[1] != 11:
-                    continue # candidate too close to edge
-                try:
-                    upsamp_substk = resize(substk,
-                                           (substk.shape[0]*self.upsamp_factor,
-                                            substk.shape[1]*self.upsamp_factor,
-                                            substk.shape[2]*self.upsamp_factor),
-                                            mode='constant',anti_aliasing=False)
-                except:
-                    continue
-                bead_match = match_template(upsamp_substk,
-                                            self.upsamp_bead, pad_input=True)
-                yu, xu, zu = np.where(bead_match==bead_match.max())
-                yu = (yu[0]-int(upsamp_substk.shape[0]/2))/self.upsamp_factor
-                xu = (xu[0]-int(upsamp_substk.shape[1]/2))/self.upsamp_factor
-                zu = (zu[0]-int(upsamp_substk.shape[2]/2))/self.upsamp_factor
-                ys, xs, zs = (yu+y, xu+x, zu+z)
-                subpixel_beads.append((ys, xs, zs))
+        if self.subpixel_method == 'template':
+            if self.verbose:
+                iterable = tqdm(self.features.shape[0],desc='Finding Subpixel Centers')
+            else:
+                iterable = ref_beads
+            ref_beads = np.zeros([self.features.shape[0],2],dtype=int)
+            ref_beads[:,0] = self.features.y
+            ref_beads[:,1] = self.features.x
+            # ref_beads = peak_local_max(img)#,threshold_abs=np.percentile(img.ravel(),99.9))
+            # Find Beads in 3D
+            z = torch.tensor(self.stk[ref_beads[:,0],ref_beads[:,1],:]).max(1).indices.numpy()
+            ref_beads = np.concatenate([ref_beads.T,z[:,None].T]).T
+            ref_beads = ref_beads.astype(int)
+            ref_beads = [ref_beads[i,:] for i in range(ref_beads.shape[0])]
+            self.generate_template()
+            if self.two_dimensional:
+                for y, x in iterable:
+                    substk = self.stk[y-5:y+6, x-5:x+6]
+                    if substk.shape[0] != 11 or substk.shape[1] != 11:
+                        continue # candidate too close to edge
+                    try:
+                        upsamp_substk = resize(substk,
+                                               (substk.shape[0]*self.upsamp_factor,
+                                                substk.shape[1]*self.upsamp_factor),
+                                                mode='constant',anti_aliasing=False)
+                    except:
+                        continue
+                    bead_match = match_template(upsamp_substk,
+                                                self.upsamp_bead, pad_input=True)
+                    yu, xu = np.where(bead_match==bead_match.max())
+                    yu = (yu[0]-int(upsamp_substk.shape[0]/2))/self.upsamp_factor
+                    xu = (xu[0]-int(upsamp_substk.shape[1]/2))/self.upsamp_factor
+                    ys, xs = (yu+y, xu+x)
+                    subpixel_beads.append((ys, xs,0))
+            else:
+                for y, x, z in iterable:
+                    substk = self.stk[y-5:y+6, x-5:x+6, z-2:z+3]
+                    if substk.shape[0] != 11 or substk.shape[1] != 11:
+                        continue # candidate too close to edge
+                    try:
+                        upsamp_substk = resize(substk,
+                                               (substk.shape[0]*self.upsamp_factor,
+                                                substk.shape[1]*self.upsamp_factor,
+                                                substk.shape[2]*self.upsamp_factor),
+                                                mode='constant',anti_aliasing=False)
+                    except:
+                        continue
+                    bead_match = match_template(upsamp_substk,
+                                                self.upsamp_bead, pad_input=True)
+                    yu, xu, zu = np.where(bead_match==bead_match.max())
+                    yu = (yu[0]-int(upsamp_substk.shape[0]/2))/self.upsamp_factor
+                    xu = (xu[0]-int(upsamp_substk.shape[1]/2))/self.upsamp_factor
+                    zu = (zu[0]-int(upsamp_substk.shape[2]/2))/self.upsamp_factor
+                    ys, xs, zs = (yu+y, xu+x, zu+z)
+                    subpixel_beads.append((ys, xs, zs))
+        elif self.subpixel_method == 'max':
+            window = 5
+            subpixel_beads = []
+            if self.verbose:
+                iterable = tqdm(self.features.iterrows(),total=self.features.shape[0],desc='Finding Subpixel Centers')
+            else:
+                iterable = self.features.iterrows()
+            for i,row in iterable:
+                x = int(row.x)
+                y = int(row.y)
+                if self.two_dimensional:
+                    substk = self.stk[y-window:y+window+1, x-window:x+window+1]
+                    if substk.shape[0] != 2*window+1 or substk.shape[1] != 2*window+1:
+                        continue # candidate too close to edge
+                    try:
+                        upsamp_substk = resize(substk,
+                                               (substk.shape[0]*self.upsamp_factor,
+                                                substk.shape[1]*self.upsamp_factor),
+                                                mode='constant',anti_aliasing=False)
+                    except:
+                        continue
+                    yu = np.argmax(gaussian_filter(np.array([upsamp_substk[d,:,:].mean() for d in range(upsamp_substk.shape[0])]),5))
+                    xu = np.argmax(gaussian_filter(np.array([upsamp_substk[:,d,:].mean() for d in range(upsamp_substk.shape[1])]),5))
+                    yu = (yu-int(upsamp_substk.shape[0]/2))/self.upsamp_factor
+                    xu = (xu-int(upsamp_substk.shape[1]/2))/self.upsamp_factor
+                    ys, xs, zs = (yu+y, xu+x)
+                else:
+                    substk = self.stk[y-window:y+window+1, x-window:x+window+1,:]
+                    if substk.shape[0] != 2*window+1 or substk.shape[1] != 2*window+1:
+                        continue # candidate too close to edge
+                    try:
+                        upsamp_substk = resize(substk,
+                                               (substk.shape[0]*self.upsamp_factor,
+                                                substk.shape[1]*self.upsamp_factor,
+                                                substk.shape[2]*self.upsamp_factor),
+                                                mode='constant',anti_aliasing=False)
+                    except:
+                        continue
+                    yu = np.argmax(gaussian_filter(np.array([upsamp_substk[d,:,:].mean() for d in range(upsamp_substk.shape[0])]),5))
+                    xu = np.argmax(gaussian_filter(np.array([upsamp_substk[:,d,:].mean() for d in range(upsamp_substk.shape[1])]),5))
+                    zu = np.argmax(gaussian_filter(np.array([upsamp_substk[:,:,d].mean() for d in range(upsamp_substk.shape[2])]),5))
+                    yu = (yu-int(upsamp_substk.shape[0]/2))/self.upsamp_factor
+                    xu = (xu-int(upsamp_substk.shape[1]/2))/self.upsamp_factor
+                    zu = zu/self.upsamp_factor
+                    if zu==0:
+                        continue
+                    ys, xs, zs = (yu+y, xu+x, zu)
+                    subpixel_beads.append((ys, xs, zs))
+        
         self.beads = subpixel_beads
-        del self.stk
+        # del self.stk
         if len(self.beads)==0:
             self.report_failure('not enough beads found')
         else:
