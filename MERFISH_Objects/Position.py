@@ -11,6 +11,7 @@ import os
 import numpy as np
 from metadata import Metadata
 from fish_results import HybeData
+from datetime import datetime
 
 class Position_Class(object):
     def __init__(self,
@@ -43,6 +44,13 @@ class Position_Class(object):
         self.hybe_fnames_list = [str(self.dataset+'_'+self.posname+'_'+hybe+'.pkl') for hybe in self.all_hybes]
         self.fishdata = FISHData(os.path.join(self.metadata_path,self.parameters['fishdata']))
         
+        self.projection_zstart=self.parameters['projection_zstart'] 
+        self.projection_k=self.parameters['projection_k']
+        self.projection_zskip=self.parameters['projection_zskip'] 
+        self.projection_zend=self.parameters['projection_zend']
+        self.projection_function=self.parameters['projection_function']
+        self.two_dimensional = self.parameters['two_dimensional']
+        
         self.segmentation_completed = False
         self.hybes_completed = False
         self.classification_completed = False
@@ -52,20 +60,34 @@ class Position_Class(object):
         
     def run(self):
         self.check_flag()
+        if not self.failed:
+            self.main()
+            
+    def update_user(self,message):
+        """ For User Display"""
+        i = [i for i in tqdm([],desc=str(datetime.now().strftime("%H:%M:%S"))+' '+str(message))]
+        
+    def main(self):
+        self.check_imaging()
+        if len(self.nucstain)>0:
+            self.check_segmentation()
+        if len(self.imaged_hybes)>0:
+            self.check_hybes()
+        if self.hybes_completed:
+            if self.segmentation_completed:
+                self.check_classification()
 
     def check_flag(self):
         if self.verbose:
-            i = [i for i in tqdm([],desc='Checking Flag')]
+            self.update_user('Checking Flag')
         flag = self.fishdata.load_data('flag',dataset=self.dataset,posname=self.posname)
         if flag == 'Failed':
             self.failed = True
             self.completed = True
-        if not self.failed:
-            self.check_imaging()
                     
     def check_imaging(self):
         if self.verbose:
-            i = [i for i in tqdm([],desc='Checking Imaging')]
+            self.update_user('Checking Imaging')
         self.total_hybes = list(np.unique([hybe for seq,hybe,channel in self.bitmap]))
         self.started_acqs = [i for i in os.listdir(self.metadata_path) if ('hybe' in i)&(i.split('_')[0] in self.total_hybes)]
         self.nucstain = [i for i in os.listdir(self.metadata_path) if 'nucstain' in i]
@@ -74,20 +96,6 @@ class Position_Class(object):
         self.acqs = [i for i in self.started_acqs if os.path.exists(os.path.join(self.metadata_path,i,dictionary[self.posname]))]
         self.imaged_hybes = [i.split('_')[0] for i in self.acqs if 'hybe' in i]
         self.not_imaged = list(np.unique([hybe for seq,hybe,channel in self.bitmap if not hybe in self.imaged_hybes]))
-        if len(self.nucstain)>0:
-            self.check_segmentation()
-#             self.imaged_hybes.append('nucstain')
-        if len(self.imaged_hybes)>0:
-            self.check_hybes()
-        if self.hybes_completed:
-            if self.segmentation_completed:
-                self.check_classification()
-        if self.classification_completed:
-            self.completed = True
-            self.fishdata.add_and_save_data('Passed','flag',
-                                            dataset=self.dataset,
-                                            posname=self.posname,
-                                            hybe='all')
 
     def check_segmentation(self):
         """ check segmentation flag"""
@@ -95,7 +103,7 @@ class Position_Class(object):
                                        posname=self.posname,
                                        channel=self.parameters['nucstain_channel'])
         if self.verbose:
-            i = [i for i in tqdm([],desc='Checking Segmentation')]
+            self.update_user('Checking Segmentation')
         if flag == 'Started':
             do = 'nothing'
         elif flag =='Failed':
@@ -132,7 +140,7 @@ class Position_Class(object):
         
     def check_hybes(self):
         if self.verbose:
-            iterable = tqdm(self.imaged_hybes,desc='Checking Hybe Flags')
+            iterable = tqdm(self.imaged_hybes,desc=str(datetime.now().strftime("%H:%M:%S"))+'Checking Hybe Flags')
         else:
             iterable = self.imaged_hybes
         self.started = []
@@ -156,7 +164,6 @@ class Position_Class(object):
                 self.fishdata.add_and_save_data(str(hybe+' Failed'),'log',
                                                         dataset=self.dataset,
                                                         posname=self.posname)
-                self.completed = True
         if not self.completed:
             if len(self.not_started)==0: # All hybes have been started
                 if len(self.started)==0: # All imaged hybes have been completed
@@ -168,7 +175,7 @@ class Position_Class(object):
                         
     def create_hybes(self):
         if self.verbose:
-            iterable = tqdm(self.not_started,desc='Creating Hybes')
+            iterable = tqdm(self.not_started,desc=str(datetime.now().strftime("%H:%M:%S"))+'Creating Hybes')
         else:
             iterable = self.not_started
         self.hybe_daemon_path = os.path.join(self.daemon_path,'hybe')
@@ -190,36 +197,104 @@ class Position_Class(object):
                                                         dataset=self.dataset,
                                                         posname=self.posname,
                                                         hybe=hybe)
-    def check_classification(self):
-        if self.verbose:
-            i = [i for i in tqdm([],desc='Checking Classification')]
-        flag = self.fishdata.load_data('flag',dataset=self.dataset,
-                                       posname=self.posname,hybe='all')
-        if isinstance(flag,type(None)):
-            self.create_classification()
-        if flag=='Passed':
-            self.completed = True
-            self.fishdata.add_and_save_data('Passed','flag',
-                                            dataset=self.dataset,
-                                            posname=self.posname)
         
-    def create_classification(self):
-        self.classification_daemon_path = os.path.join(self.daemon_path,'classification')
-        if not os.path.exists(self.classification_daemon_path):
-            os.mkdir(self.classification_daemon_path)
-            os.mkdir(os.path.join(self.classification_daemon_path,'input'))
-            os.mkdir(os.path.join(self.classification_daemon_path,'output'))
-        fname = self.dataset+'_'+self.posname+'.pkl'
-        fname_path = os.path.join(self.classification_daemon_path,'input',fname)
-        data = {'metadata_path':self.metadata_path,
-                    'dataset':self.dataset,
-                    'posname':self.posname,
-                    'cword_config':self.cword_config,
-                    'level':'classification'}
-        pickle.dump(data,open(fname_path,'wb'))
-        self.fishdata.add_and_save_data('Started','flag',
+    def check_projection(self):
+        if self.verbose:
+            self.update_user('Checking Projection Zindexes')
+#         self.metadata = Metadata(os.path.join(self.metadata_path,self.acq))
+        self.image_table = pd.read_csv(os.path.join(self.metadata_path,self.acqs[0],'Metadata.txt'),sep='\t')
+        self.len_z = len(self.image_table[(self.image_table.Position==self.posname)].Zindex.unique())
+        if self.projection_function=='None':
+            self.projection_k = 0
+        if self.projection_zstart==-1:
+            self.projection_zstart = 0+self.projection_k
+        elif self.projection_zstart>self.len_z:
+            print('zstart of ',self.projection_zstart,' is larger than stk range of', self.len_z)
+            raise(ValueError('Projection Error'))
+        if self.projection_zend==-1:
+            self.projection_zend = self.len_z-self.projection_k
+        elif self.projection_zend>self.len_z:
+            print('zend of ',self.projection_zend,' is larger than stk range of', self.len_z)
+            raise(ValueError('Projection Error'))
+        elif self.projection_zend<self.projection_zstart:
+            print('zstart of ',self.projection_zstart,' is larger than zend of', self.projection_zend)
+            raise(ValueError('Projection Error'))
+        self.zindexes = np.array(range(self.projection_zstart,self.projection_zend,self.projection_zskip))
+        if self.two_dimensional:
+            self.zindexes = [0]
+        
+    def check_classification(self):
+        """ Calculate Zindexes """
+        self.check_projection()
+        """ Check Zindexes """
+        if self.verbose:
+            iterable = tqdm(self.zindexes,desc=str(datetime.now().strftime("%H:%M:%S"))+'Checking Classification Flag')
+        else:
+            iterable = self.zindexes
+        self.started = []
+        self.passed = []
+        self.not_started = []
+        self.failed = []
+        for zindex in iterable:
+            flag =  self.fishdata.load_data('flag',
                                             dataset=self.dataset,
                                             posname=self.posname,
-                                            hybe='all')
-        
-        
+                                            zindex=zindex)
+            if isinstance(flag,type(None)):
+                self.not_started.append(zindex)
+            elif flag == 'Started':
+                self.started.append(zindex)
+            elif flag == 'Passed':
+                self.passed.append(zindex)
+            elif flag =='Failed':
+                """ FIX What to do if a zindex fails"""
+                self.failed.append(zindex)
+        if not self.completed:
+            if len(self.not_started)==0: # All zindex have been started
+                if len(self.started)==0: # All zindex have been completed
+                    if len(self.not_imaged)==0:# All zindex have been processed
+                        self.zindex_completed = True
+                        """ All Zindexes failed """
+                        self.completed = True
+                        if len(self.failed)==len(self.zindexes):
+                            """ Add Log"""
+                            self.fishdata.add_and_save_data('No Transcripts Detected',
+                                                            'log',
+                                                            dataset=self.dataset,
+                                                            posname=self.posname)
+                            """ Update flag"""
+                            self.fishdata.add_and_save_data('Failed',
+                                                            'flag',
+                                                            dataset=self.dataset,
+                                                            posname=self.posname)
+                        else:
+                            self.fishdata.add_and_save_data('Passed','flag',
+                                            dataset=self.dataset,
+                                            posname=self.posname)
+            else:
+                self.create_classification()
+                        
+    def create_classification(self):
+        if self.verbose:
+            iterable = tqdm(self.not_started,desc=str(datetime.now().strftime("%H:%M:%S"))+'Creating Classify')
+        else:
+            iterable = self.not_started
+        self.classify_daemon_path = os.path.join(self.daemon_path,'classification')
+        if not os.path.exists(self.classify_daemon_path):
+                os.mkdir(self.classify_daemon_path)
+                os.mkdir(os.path.join(self.classify_daemon_path,'input'))
+                os.mkdir(os.path.join(self.classify_daemon_path,'output'))
+        for zindex in iterable:
+            fname = self.dataset+'_'+self.posname+'_'+str(zindex)+'.pkl'
+            fname_path = os.path.join(self.classify_daemon_path,'input',fname)
+            data = {'metadata_path':self.metadata_path,
+                    'dataset':self.dataset,
+                    'posname':self.posname,
+                    'zindex':zindex,
+                    'cword_config':self.cword_config,
+                    'level':'classification'}
+            pickle.dump(data,open(fname_path,'wb'))
+            self.fishdata.add_and_save_data('Started','flag',
+                                                        dataset=self.dataset,
+                                                        posname=self.posname,
+                                                        zindex=zindex)

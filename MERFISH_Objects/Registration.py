@@ -19,6 +19,7 @@ import importlib
 from MERFISH_Objects.Utilities import *
 from MERFISH_Objects.FISHData import *
 from fish_results import HybeData
+from datetime import datetime
 
 from scipy.ndimage import median_filter,gaussian_filter
 from skimage.registration import phase_cross_correlation
@@ -72,6 +73,10 @@ class Registration_Class(object):
         
     def run(self):
         self.check_flags()
+    
+    def update_user(self,message):
+        """ For User Display"""
+        i = [i for i in tqdm([],desc=str(datetime.now().strftime("%H:%M:%S"))+' '+str(message))]
     
     def check_flags(self):
         """ Check flags to ensure this code should be executed"""
@@ -132,7 +137,7 @@ class Registration_Class(object):
             self.fishdata.add_and_save_data('Passed','flag',dataset=self.dataset,posname=self.posname,hybe=self.hybe,channel=self.channel)
         else:
             if self.verbose:
-                i = [i for i in tqdm([],desc='Registering Image')]
+                self.update_user('Registering Image')
             self.translation_z = 0
             self.residual = 0
             self.nbeads = 0
@@ -180,7 +185,7 @@ class Registration_Class(object):
     def create_hotpixel_kernel(self):
         """ Create the kernel that will correct a hotpixel"""
         if self.verbose:
-            i = [i for i in tqdm([],desc='Creating Hot Pixel Kernel')]
+            self.update_user('Creating Hot Pixel Kernel')
         kernel = np.ones((self.hotpixel_kernel_size,self.hotpixel_kernel_size))
         kernel[int(self.hotpixel_kernel_size/2),int(self.hotpixel_kernel_size/2)] = 0
         self.hotpixel_kernel = kernel/np.sum(kernel)
@@ -194,7 +199,7 @@ class Registration_Class(object):
         self.metadata = Metadata(self.metadata_path)
         self.stk = self.metadata.stkread(Position=self.posname,Channel=self.channel,hybe=self.hybe).astype(float)
         if self.verbose:
-            i = [i for i in tqdm(range(self.stk.shape[2]),desc='Loading Stack')]
+            self.update_user('Loading Stack')
         # Should add a way to exclude cells from bead find
         # Filter Out Low Frequency Background
         # Filter Out High Frequency Noise
@@ -321,6 +326,7 @@ class Registration_Class(object):
                     zu = (zu[0]-int(upsamp_substk.shape[2]/2))/self.upsamp_factor
                     ys, xs, zs = (yu+y, xu+x, zu+z)
                     subpixel_beads.append((ys, xs, zs))
+                    
         elif self.subpixel_method == 'max':
             window = 5
             subpixel_beads = []
@@ -386,7 +392,7 @@ class Registration_Class(object):
             
     def generate_reference_hybe(self):
         if self.verbose:
-            i = [i for i in tqdm([],desc='Calculating Transformation')]
+            self.update_user('Calculating Transformation')
         self.ref_beadarray = np.stack(self.beads,axis=0)
         self.ref_tree = KDTree(self.ref_beadarray[:, :2])
         self.db_clusts = DBSCAN(min_samples=self.dbscan_min_samples, eps=self.dbscan_eps)
@@ -455,15 +461,15 @@ class Registration_Class(object):
         self.db_clusts = self.utilities.load_data(Dataset=self.dataset,Position=self.posname,Hybe=self.ref_hybe,Type='db_clusts')
         if isinstance(self.ref_beadarray,type(None)):
             if self.verbose:
-                i = [i for i in tqdm([],desc='ref_beadarray is none')]
+                self.update_user('ref_beadarray is none')
             self.load_ref()
         elif isinstance(self.ref_tree,type(None)):
             if self.verbose:
-                i = [i for i in tqdm([],desc='ref_tree is none')]
+                self.update_user('ref_tree is none')
             self.load_ref()
         elif isinstance(self.db_clusts,type(None)):
             if self.verbose:
-                i = [i for i in tqdm([],desc='db_clusts is none')]
+                self.update_user('db_clusts is none')
             self.load_ref()
         else:
             self.reg_proceed = True
@@ -492,7 +498,7 @@ class Registration_Class(object):
             dest_beads = np.array(dest_beads)
             if len(t_est)<self.dbscan_min_samples:
                 if self.verbose:
-                    i = [i for i in tqdm([],desc='Not enough reference beads found.')]
+                    self.update_user('Not enough reference beads found.')
                 self.passed = False
                 self.fishdata.add_and_save_data('Not enough reference beads found.','log',dataset=self.dataset,posname=self.posname,hybe=self.hybe,channel=self.channel)
                 self.fishdata.add_and_save_data('Failed','flag',dataset=self.dataset,posname=self.posname,hybe=self.hybe,channel=self.channel)
@@ -509,7 +515,7 @@ class Registration_Class(object):
                     most_frequent_cluster = most_frequent_cluster.most_common(1)[0][0]
                 except IndexError:
                     if self.verbose:
-                        i = [i for i in tqdm([],desc='Index Error')]
+                        self.update_user('Index Error')
                     self.passed = False
                     self.fishdata.add_and_save_data('Not enough reference beads found.','log',dataset=self.dataset,posname=self.posname,hybe=self.hybe,channel=self.channel)
                     self.fishdata.add_and_save_data('Failed','flag',dataset=self.dataset,posname=self.posname,hybe=self.hybe,channel=self.channel)
@@ -532,7 +538,7 @@ class Registration_Class(object):
                 if opt_t[1]>self.registration_threshold:
                     self.error = 'Residual too high'
                     if self.verbose:
-                        i = [i for i in tqdm([],desc=str(self.error))]
+                        self.update_user(str(self.error))
                     self.passed = False
                     self.fishdata.add_and_save_data('Residual too high '+str(opt_t[1]),'log',dataset=self.dataset,posname=self.posname,hybe=self.hybe,channel=self.channel)
                     self.fishdata.add_and_save_data('Failed','flag',dataset=self.dataset,posname=self.posname,hybe=self.hybe,channel=self.channel)

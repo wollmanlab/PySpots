@@ -8,6 +8,7 @@ import numpy as np
 import time
 import importlib
 from MERFISH_Objects.FISHData import *
+from datetime import datetime
 
 class Stack_Class(object):
     def __init__(self,
@@ -53,10 +54,14 @@ class Stack_Class(object):
 
     def run(self):
         self.check_flags()
+    
+    def update_user(self,message):
+        """ For User Display"""
+        i = [i for i in tqdm([],desc=str(datetime.now().strftime("%H:%M:%S"))+' '+str(message))]
             
     def check_flags(self):
         if self.verbose:
-            i = [i for i in tqdm([],desc='Checking Flags')]
+            self.update_user('Checking Flags')
         self.failed = False
         self.fishdata = FISHData(os.path.join(self.metadata_path,self.parameters['fishdata']))
         #Position
@@ -162,7 +167,7 @@ class Stack_Class(object):
             
     def check_projection(self):
         if self.verbose:
-            i = [i for i in tqdm([],desc='Checking Projection Zindexes')]
+            self.update_user('Checking Projection Zindexes')
 #         self.metadata = Metadata(os.path.join(self.metadata_path,self.acq))
         self.image_table = pd.read_csv(os.path.join(self.metadata_path,self.acq,'Metadata.txt'),sep='\t')
         self.len_z = len(self.image_table[(self.image_table.Position==self.posname)].Zindex.unique())

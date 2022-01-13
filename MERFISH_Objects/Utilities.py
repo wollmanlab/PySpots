@@ -4,6 +4,7 @@ import shutil
 import dill as pickle
 import tifffile
 from MERFISH_Objects.FISHData import *
+from datetime import datetime
 
 class Utilities_Class(object):
     def __init__(self,

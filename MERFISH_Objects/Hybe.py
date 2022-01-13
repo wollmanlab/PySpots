@@ -9,6 +9,7 @@ from MERFISH_Objects.FISHData import *
 import dill as pickle
 import os
 import importlib
+from datetime import datetime
 
 class Hybe_Class(object):
     def __init__(self,
@@ -48,9 +49,13 @@ class Hybe_Class(object):
     def run(self):
         self.check_flags()
         
+    def update_user(self,message):
+        """ For User Display"""
+        i = [i for i in tqdm([],desc=str(datetime.now().strftime("%H:%M:%S"))+' '+str(message))]
+        
     def check_flags(self):
         if self.verbose:
-            i = [i for i in tqdm([],desc='Checking Flags')]
+            self.update_user('Checking Flags')
         self.failed = False
         self.fishdata = FISHData(os.path.join(self.metadata_path,self.parameters['fishdata']))
         #Position
@@ -81,7 +86,7 @@ class Hybe_Class(object):
             
     def check_registration(self):
         if self.verbose:
-            i = [i for i in tqdm([],desc='Checking Registration Flags')]
+            self.update_user('Checking Registration Flags')
         flag =  self.fishdata.load_data('flag',dataset=self.dataset,
                                         posname=self.posname,
                                         hybe=self.hybe,
@@ -142,8 +147,7 @@ class Hybe_Class(object):
             
     def create_registration(self):
         if self.verbose:
-            for i in tqdm([0],desc='Creating Registration'):
-                pass
+            self.update_user('Checking Registration')
         fname = self.dataset+'_'+self.posname+'_'+self.hybe+'.pkl'
         fname_path = os.path.join(self.registration_daemon_path,'input',fname)
         data = {'metadata_path':self.metadata_path,

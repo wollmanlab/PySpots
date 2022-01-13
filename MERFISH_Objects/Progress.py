@@ -1,4 +1,5 @@
 from MERFISH_Objects.Analyze import *
+from datetime import datetime
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -11,7 +12,10 @@ def find_dtype(t):
     """ dataset_positon_hybe_channel_zindex_flag.txt"""
     t = t.split('_')
     if t[-2]!='X':
-        dtype = 'img'
+        if t[-4]=='X':
+            dtype = 'clas'
+        else:
+            dtype = 'img'
     elif t[-3]!='X':
         if t[-3]=='DeepBlue':
             if t[-4]=='X':
@@ -21,10 +25,7 @@ def find_dtype(t):
         else:
             dtype = 'stk'
     elif t[-4]!='X':
-        if t[-4]=='all':
-            dtype = 'clas'
-        else:
-            dtype = 'hybe'
+        dtype = 'hybe'
     elif t[-5]!='X':
         dtype = 'pos'
     else:

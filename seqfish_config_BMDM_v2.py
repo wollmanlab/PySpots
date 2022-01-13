@@ -9,8 +9,8 @@
 # This bitmap is tyically constant for most experiments
 # Might need to change this if experimental conditions are different
 import numpy as np
-import pandas as pd
 import pickle
+import pandas as pd
 import os
 from scipy.spatial import distance_matrix
 from collections import OrderedDict
@@ -19,69 +19,25 @@ from hybescope_config.microscope_config import *
 import dill as pickle
 
 # # Basic parameters of imaging 
-# bitmap = [('RS0095_cy5', 'hybe1', 'FarRed'),
-#           ('RS0109_cy5', 'hybe3', 'FarRed'),
-#           ('RS0175_cy5', 'hybe5', 'FarRed'),
-#           ('RS0237_cy5', 'hybe6', 'FarRed'),
-#           ('RS0307_cy5', 'hybe2', 'FarRed'),
-#           ('RS0332_cy5', 'hybe4', 'FarRed'),
-#           ('RS0384_atto565', 'hybe4', 'Orange'),
-#           ('RS0406_atto565', 'hybe5', 'Orange'),
-#           ('RS0451_atto565', 'hybe3', 'Orange'),
-#           ('RS0468_atto565', 'hybe2', 'Orange'),
-#           ('RS0548_atto565', 'hybe1', 'Orange'),
-#           ('RS64.0_atto565', 'hybe6', 'Orange'),
-#           ('RSN9927.0_cy5', 'hybe8', 'FarRed'),
-#           ('RSN2336.0_cy5', 'hybe7', 'FarRed'), 
-#           ('RSN1807.0_cy5', 'hybe9', 'FarRed'),
-#           ('RSN4287.0_atto565', 'hybe7', 'Orange'), 
-#           ('RSN1252.0_atto565', 'hybe9', 'Orange'),
-#           ('RSN9535.0_atto565', 'hybe8', 'Orange')]
+bitmap = [('RS0095_cy5', 'hybe1', 'FarRed'),
+          ('RS0109_cy5', 'hybe3', 'FarRed'),
+          ('RS0175_cy5', 'hybe5', 'FarRed'),
+          ('RS0237_cy5', 'hybe6', 'FarRed'), #Check 7
+          ('RS0307_cy5', 'hybe2', 'FarRed'),
+          ('RS0332_cy5', 'hybe4', 'FarRed'),
+          ('RS0384_atto565', 'hybe4', 'Orange'),
+          ('RS0406_atto565', 'hybe5', 'Orange'),
+          ('RS0451_atto565', 'hybe3', 'Orange'),
+          ('RS0468_atto565', 'hybe2', 'Orange'),
+          ('RS0548_atto565', 'hybe1', 'Orange'),
+          ('RS64.0_atto565', 'hybe6', 'Orange'),#Check 7
+          ('RSN9927.0_cy5', 'hybe8', 'FarRed'),
+          ('RSN2336.0_cy5', 'hybe7', 'FarRed'), #Check 6
+          ('RSN1807.0_cy5', 'hybe9', 'FarRed'),
+          ('RSN4287.0_atto565', 'hybe7', 'Orange'), #Check 6
+          ('RSN1252.0_atto565', 'hybe9', 'Orange'),
+          ('RSN9535.0_atto565', 'hybe8', 'Orange')]
 
-# bitmap = [('RS0095_cy5', 'hybe1', 'FarRed'),
-#           ('RS0109_cy5', 'hybe3', 'FarRed'),
-#           ('RS0175_cy5', 'hybe5', 'FarRed'),
-#           ('RS0237_cy5', 'hybe7', 'FarRed'),
-#           ('RS0307_cy5', 'hybe2', 'FarRed'),
-#           ('RS0332_cy5', 'hybe4', 'FarRed'),
-#           ('RS0384_atto565', 'hybe4', 'Orange'),
-#           ('RS0406_atto565', 'hybe5', 'Orange'),
-#           ('RS0451_atto565', 'hybe3', 'Orange'),
-#           ('RS0468_atto565', 'hybe2', 'Orange'),
-#           ('RS0548_atto565', 'hybe1', 'Orange'),
-#           ('RS64.0_atto565', 'hybe7', 'Orange'),
-#           ('RS156.0_alexa488', 'hybe2', 'Green'),
-#           ('RS278.0_alexa488', 'hybe3','Green'),
-#           ('RS313.0_alexa488', 'hybe4', 'Green'),
-#           ('RS643.0_alexa488', 'hybe6', 'Green'),
-#           ('RS740.0_alexa488', 'hybe1', 'Green'),
-#           ('RS810.0_alexa488', 'hybe5', 'Green'),
-#           ('RSN9927.0_cy5', 'hybe8', 'FarRed'),
-#           ('RSN2336.0_cy5', 'hybe6', 'FarRed'), 
-#           ('RSN1807.0_cy5', 'hybe9', 'FarRed'), 
-#           ('RSN4287.0_atto565', 'hybe6', 'Orange'), 
-#           ('RSN1252.0_atto565', 'hybe9', 'Orange'),
-#           ('RSN9535.0_atto565', 'hybe8', 'Orange')
-#          ]
-
-bitmap = [('RS277436_RS0095_cy5','hybe1','FarRed'),
-         ('RS516094_RS0109_cy5','hybe3','FarRed'),
-         ('RS336946_RS0175_cy5','hybe5','FarRed'),
-         ('RS617691_RS0237_cy5','hybe6','FarRed'),# maybe 7
-         ('RS1038995_RS0307_cy5','hybe2','FarRed'),
-         ('RS106372_RS0332_cy5','hybe4','FarRed'),
-         ('RS343998_RS0384_atto565','hybe4','Orange'),
-         ('RS5261_RS0406_atto565','hybe5','Orange'),
-         ('RS71182_RS0451_atto565','hybe3','Orange'),
-         ('RS50432_RS0468_atto565','hybe2','Orange'),
-         ('RS74925_RS0548_atto565','hybe1','Orange'),
-         ('RS362116_RS64.0_atto565','hybe6','Orange'),# maybe 7
-         ('RS687380_RS156.0_alexa488','hybe2','Green'),
-         ('RS154669_RS278.0_alexa488','hybe3','Green'),
-         ('RS860204_RS313.0_alexa488','hybe4','Green'),
-         ('RS8916_RS643.0_alexa488','hybe6','Green'),
-         ('RS695682_RS740.0_alexa488','hybe1','Green'),
-         ('RS245993_RS810.0_alexa488','hybe5','Green')]
 
 nbits = len(bitmap)
 
@@ -94,7 +50,7 @@ def load_codebook(fname):
     return np.array(barcodes)
 
 # config_options
-codebook_pth = '/bigstore/binfo/mouse/Brain/DRedFISH/DRedFISH_Validation_Codebook.txt'
+codebook_pth = '/bigstore/GeneralStorage/Evan/NFKB_MERFISH/BMDM_NFkB_v2/Probes/Genes_Final_120919/design/codebook_120919.csv'
 base_pth = '/home/zach/PythonRepos/PySpots/hybescope_config/'
 possible_cwords = load_codebook(os.path.join(base_pth,'MHD4_18bit_187cwords.csv'))
 
@@ -160,6 +116,8 @@ parameters['registration_channel']='DeepBlue'
 parameters['daemon_path']='/scratch/daemon/'
 parameters['utilities_path']='/scratch/utilities/'
 parameters['floor']=True
+parameters['match_thresh'] = -2
+parameters['fpr_thresh'] = 0.2
 
 hotpixel_loc = pickle.load(open('/scratch/hotpixels.pkl','rb'))
 # Not certain about hotpixel x vs y
