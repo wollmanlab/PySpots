@@ -36,7 +36,7 @@ imagecodecs @ file:///tmp/build/80754af9/imagecodecs_1635529108216/work
 imageio==2.13.0
 importlib-metadata==4.8.2
 ipykernel==6.5.1
-ipython==7.30.0
+ipython==7.31.1
 jedi==0.18.1
 Jinja2 @ file:///home/conda/feedstock_root/build_artifacts/jinja2_1636510082894/work
 joblib @ file:///tmp/build/80754af9/joblib_1635411271373/work
