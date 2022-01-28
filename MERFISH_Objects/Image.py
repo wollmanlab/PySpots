@@ -81,94 +81,98 @@ class Image_Class(object):
         self.proceed = True
         self.failed = False
         # Position
-        flag = self.fishdata.load_data('flag',
-                                           dataset=self.dataset,
-                                           posname=self.posname)
+        flag = self.utilities.load_data(Dataset=self.dataset,
+                                        Position=self.posname,
+                                        Type='flag')
         if flag == 'Failed':
             log = self.posname+' Failed'
             self.completed = True
             self.failed = True
         # Hybe
         if not self.failed:
-            flag = self.fishdata.load_data('flag',
-                                           dataset=self.dataset,
-                                           posname=self.posname,
-                                           hybe=self.hybe)
+            flag = self.utilities.load_data(Dataset=self.dataset,
+                                            Position=self.posname,
+                                            Hybe=self.hybe,
+                                            Type='flag')
             if flag == 'Failed':
                 log = self.hybe+' Failed'
                 self.completed = True
                 self.failed = True
         # Channel
         if not self.failed:
-            flag = self.fishdata.load_data('flag',
-                                           dataset=self.dataset,
-                                           posname=self.posname,
-                                           hybe=self.hybe,
-                                           channel=self.channel)
+            flag = self.utilities.load_data(Dataset=self.dataset,
+                                            Position=self.posname,
+                                            Hybe=self.hybe,
+                                            Channel=self.channel,
+                                            Type='flag')
             if flag == 'Failed':
                 log = self.channel+' Failed'
                 self.completed = True
                 self.failed = True
         # Zindex
         if not self.failed:
-            flag = self.fishdata.load_data('flag',
-                                           dataset=self.dataset,
-                                           posname=self.posname,
-                                           hybe=self.hybe,
-                                           channel=self.channel,
-                                           zindex=self.zindex)
+            flag = self.utilities.load_data(Dataset=self.dataset,
+                                            Position=self.posname,
+                                            Hybe=self.hybe,
+                                            Channel=self.channel,
+                                            Zindex=self.zindex,
+                                            Type='flag')
             if flag == 'Failed':
                 log = self.zindex+' Failed'
                 self.completed = True
                 self.failed = True
         if self.failed:
-            self.fishdata.add_and_save_data('Failed','flag',
-                                            dataset=self.dataset,
-                                            posname=self.posname,
-                                            hybe=self.hybe,
-                                            channel=self.channel,
-                                            zindex=self.zindex)
-            self.fishdata.add_and_save_data(log,'log',
-                                            dataset=self.dataset,
-                                            posname=self.posname,
-                                            hybe=self.hybe,
-                                            channel=self.channel,
-                                            zindex=self.zindex)
+            self.utilities.save_data('Failed',
+                                    Dataset=self.dataset,
+                                    Position=self.posname,
+                                    Hybe=self.hybe,
+                                    Channel=self.channel,
+                                    Zindex=self.zindex,
+                                    Type='flag')
+            self.utilities.save_data(log,
+                                    Dataset=self.dataset,
+                                    Position=self.posname,
+                                    Hybe=self.hybe,
+                                    Channel=self.channel,
+                                    Zindex=self.zindex,
+                                    Type='log')
         else:
-            """ Check Image """
+            """ Check Spots"""
             try:
-                self.img = self.fishdata.load_data('image',
+                """ Change to check if file exists """
+                self.spots = self.fishdata.load_data('spotcalls',
                                                 dataset=self.dataset,
                                                 posname=self.posname,
                                                 hybe=self.hybe,
                                                 channel=self.channel,
                                                 zindex=self.zindex)
             except:
-                self.img = None
-            if not isinstance(self.img,type(None)): # Image already processed
-                """ Check Spots"""
+                self.spots = None
+            if not isinstance(self.spots,type(None)): # Spots already found
+                self.completed = True
+                self.proceed = False
+                """ Only pass if len spots>0 FIX"""
+                self.utilities.save_data('Passed',
+                                        Dataset=self.dataset,
+                                        Position=self.posname,
+                                        Hybe=self.hybe,
+                                        Channel=self.channel,
+                                        Zindex=self.zindex,
+                                        Type='flag')
+            else:
+                """ Check Image """
                 try:
-                    self.spots = self.fishdata.load_data('spotcalls',
+                    """ Change to check if file exists """
+                    self.img = self.fishdata.load_data('image',
                                                     dataset=self.dataset,
                                                     posname=self.posname,
                                                     hybe=self.hybe,
                                                     channel=self.channel,
                                                     zindex=self.zindex)
                 except:
-                    self.spots = None
-                if not isinstance(self.spots,type(None)): # Spots already found
-                    self.completed = True
-                    self.proceed = False
-                    self.fishdata.add_and_save_data('Passed','flag',
-                                                    dataset=self.dataset,
-                                                    posname=self.posname,
-                                                    hybe=self.hybe,
-                                                    channel=self.channel,
-                                                    zindex=self.zindex)
-                else:
-                    self.main()
-            else:
+                    self.img = None
                 self.main()
+            
             
     def main(self):
         self.load_data()
@@ -405,13 +409,13 @@ class Image_Class(object):
         
         """ UPDATE CHECK IF THERE ARE NO SPOTS AND ALERT USER """
         if len(self.spots)==0:
-            self.fishdata.add_and_save_data('No Spots Detected',
-                                        'log',
-                                        dataset=self.dataset,
-                                        posname=self.posname,
-                                        hybe=self.hybe,
-                                        channel=self.channel,
-                                        zindex=self.zindex)
+            self.utilities.save_data('No Spots Detected',
+                                    Dataset=self.dataset,
+                                    Position=self.posname,
+                                    Hybe=self.hybe,
+                                    Channel=self.channel,
+                                    Zindex=self.zindex,
+                                    Type='log')
     def save_data(self):
         """ Save Data using FISHDATA"""
         if self.verbose:
@@ -431,12 +435,12 @@ class Image_Class(object):
                                         hybe=self.hybe,
                                         channel=self.channel,
                                         zindex=self.zindex)
-        self.fishdata.add_and_save_data('Passed',
-                                        'flag',
-                                        dataset=self.dataset,
-                                        posname=self.posname,
-                                        hybe=self.hybe,
-                                        channel=self.channel,
-                                        zindex=self.zindex)
+        self.utilities.save_data('Passed',
+                                    Dataset=self.dataset,
+                                    Position=self.posname,
+                                    Hybe=self.hybe,
+                                    Channel=self.channel,
+                                    Zindex=self.zindex,
+                                    Type='flag')
         self.completed = True
         

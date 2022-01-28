@@ -55,7 +55,7 @@ class Registration_Class(object):
         self.utilities_path = self.parameters['utilities_path']
         self.ref_hybe = self.parameters['ref_hybe']
         self.subpixel_method = self.parameters['subpixel_method']
-        self.utilities = Utilities_Class(self.utilities_path)
+        self.utilities = Utilities_Class(self.parameters['utilities_path'])
         self.hotpixel = self.utilities.load_data(Dataset=self.dataset,Type='hot_pixels')
         self.hotpixel_X=self.hotpixel[0]
         self.hotpixel_Y=self.hotpixel[1]
@@ -80,34 +80,63 @@ class Registration_Class(object):
     
     def check_flags(self):
         """ Check flags to ensure this code should be executed"""
-        flag = self.fishdata.load_data('flag',dataset=self.dataset,posname=self.posname,hybe=self.hybe,channel=self.channel)
+        flag = self.utilities.load_data(Dataset=self.dataset,
+                                        Position=self.posname,
+                                        Hybe=self.hybe,
+                                        Channel=self.channel,
+                                        Type='flag')
         if flag=='Failed': # Self Failed
             self.completed = True
         elif flag=='Passed':
             self.completed = True
         else:
-            flag = self.fishdata.load_data('flag',dataset=self.dataset,posname=self.posname,hybe=self.hybe)
+            flag = self.utilities.load_data(Dataset=self.dataset,
+                                        Position=self.posname,
+                                        Hybe=self.hybe,
+                                        Type='flag')
             if flag=='Failed': # Hybe Failed
                 self.completed = True
-                self.fishdata.add_and_save_data('Failed','flag',dataset=self.dataset,posname=self.posname,hybe=self.hybe,channel=self.channel)
-                self.fishdata.add_and_save_data(str(self.hybe+' Failed'),'log',dataset=self.dataset,posname=self.posname,hybe=self.hybe,channel=self.channel)
+                self.utilities.save_data('Failed',
+                                             Dataset=self.dataset,
+                                             Position=self.posname,
+                                             Hybe=self.hybe,
+                                             Channel=self.channel,
+                                             Type='flag')
+                self.utilities.save_data(str(self.hybe+' Failed'),
+                                             Dataset=self.dataset,
+                                             Position=self.posname,
+                                             Hybe=self.hybe,
+                                             Channel=self.channel,
+                                             Type='log')
             else:
-                flag = self.fishdata.load_data('flag',dataset=self.dataset,posname=self.posname)
+                flag = self.utilities.load_data(Dataset=self.dataset,
+                                        Position=self.posname,
+                                        Type='flag')
                 if flag=='Failed': # Position Failed
                     self.completed = True
-                    self.report_failure(str(self.posname+' Failed'))
-                    self.fishdata.add_and_save_data('Failed','flag',
-                                                    dataset=self.dataset,posname=self.posname,
-                                                    hybe=self.hybe,channel=self.channel)
-                    self.fishdata.add_and_save_data('Failed','flag',
-                                                    dataset=self.dataset,posname=self.posname,
-                                                    hybe=self.hybe)
-                    self.fishdata.add_and_save_data(str(self.posname+' Failed'),'log',
-                                                    dataset=self.dataset,posname=self.posname,
-                                                    hybe=self.hybe,channel=self.channel)
-                    self.fishdata.add_and_save_data(str(self.posname+' Failed'),'log',
-                                                    dataset=self.dataset,posname=self.posname,
-                                                    hybe=self.hybe)
+                    self.report_failure(str(self.posname+' Failed'))                   
+                    self.utilities.save_data(str(self.posname+' Failed'),
+                                             Dataset=self.dataset,
+                                             Position=self.posname,
+                                             Hybe=self.hybe,
+                                             Channel=self.channel,
+                                             Type='log')
+                    self.utilities.save_data('Failed',
+                                             Dataset=self.dataset,
+                                             Position=self.posname,
+                                             Hybe=self.hybe,
+                                             Channel=self.channel,
+                                             Type='flag')
+                    self.utilities.save_data(str(self.posname+' Failed'),
+                                             Dataset=self.dataset,
+                                             Position=self.posname,
+                                             Hybe=self.hybe,
+                                             Type='log')
+                    self.utilities.save_data('Failed',
+                                             Dataset=self.dataset,
+                                             Position=self.posname,
+                                             Hybe=self.hybe,
+                                             Type='flag')
                 else:
                     if self.parameters['registration_method'] =='image':
                         self.image_registration()
@@ -119,7 +148,43 @@ class Registration_Class(object):
         ### Need to move from hardcode
         acq = [i for i in os.listdir(self.metadata_path) if hybe+'_' in i][0]
         temp_metadata = Metadata(os.path.join(self.metadata_path,acq))
-        stk = temp_metadata.stkread(Position=self.posname,Channel=channel,hybe=hybe)
+        try:
+            stk = temp_metadata.stkread(Position=self.posname,Channel=channel,hybe=hybe)
+            
+        except:
+            """ Issue with imaging"""
+            stk = None
+            self.completed = True
+            self.utilities.save_data('Imaging Failed',
+                                     Dataset=self.dataset,
+                                     Position=self.posname,
+                                     Hybe=self.hybe,
+                                     Channel=self.channel,
+                                     Type='log')
+            self.utilities.save_data('Failed',
+                                     Dataset=self.dataset,
+                                     Position=self.posname,
+                                     Hybe=self.hybe,
+                                     Channel=self.channel,
+                                     Type='flag')
+            self.utilities.save_data('Registration Failed',
+                                     Dataset=self.dataset,
+                                     Position=self.posname,
+                                     Hybe=self.hybe,
+                                     Type='log')
+            self.utilities.save_data('Failed',
+                                     Dataset=self.dataset,
+                                     Position=self.posname,
+                                     Hybe=self.hybe,
+                                     Type='flag')
+            self.utilities.save_data(str(self.hybe)+' Failed',
+                                     Dataset=self.dataset,
+                                     Position=self.posname,
+                                     Type='log')
+            self.utilities.save_data('Failed',
+                                     Dataset=self.dataset,
+                                     Position=self.posname,
+                                     Type='flag')
         image = stk.mean(axis=2)
         denoised = gaussian_filter(image,self.image_blur_kernel)
         background = gaussian_filter(denoised,self.image_background_kernel)
@@ -134,7 +199,12 @@ class Registration_Class(object):
         if not isinstance(tforms,type(None)):
             self.tforms = tforms
             self.completed = True
-            self.fishdata.add_and_save_data('Passed','flag',dataset=self.dataset,posname=self.posname,hybe=self.hybe,channel=self.channel)
+            self.utilities.save_data('Passed',
+                                     Dataset=self.dataset,
+                                     Position=self.posname,
+                                     Hybe=self.hybe,
+                                     Channel=self.channel,
+                                     Type='flag')
         else:
             if self.verbose:
                 self.update_user('Registering Image')
@@ -159,7 +229,12 @@ class Registration_Class(object):
         if not isinstance(tforms,type(None)):
             self.tforms = tforms
             self.completed = True
-            self.fishdata.add_and_save_data('Passed','flag',dataset=self.dataset,posname=self.posname,hybe=self.hybe,channel=self.channel)
+            self.utilities.save_data('Passed',
+                                     Dataset=self.dataset,
+                                     Position=self.posname,
+                                     Hybe=self.hybe,
+                                     Channel=self.channel,
+                                     Type='flag')
         else:
             self.find_tforms()
                 
@@ -197,7 +272,42 @@ class Registration_Class(object):
         
     def load_stack(self):
         self.metadata = Metadata(self.metadata_path)
-        self.stk = self.metadata.stkread(Position=self.posname,Channel=self.channel,hybe=self.hybe).astype(float)
+        try:
+            self.stk = self.metadata.stkread(Position=self.posname,Channel=self.channel,hybe=self.hybe).astype(float)
+        except:
+            """ Issue with imaging"""
+            self.stk = None
+            self.completed = True
+            self.utilities.save_data('Imaging Failed',
+                                     Dataset=self.dataset,
+                                     Position=self.posname,
+                                     Hybe=self.hybe,
+                                     Channel=self.channel,
+                                     Type='log')
+            self.utilities.save_data('Failed',
+                                     Dataset=self.dataset,
+                                     Position=self.posname,
+                                     Hybe=self.hybe,
+                                     Channel=self.channel,
+                                     Type='flag')
+            self.utilities.save_data('Registration Failed',
+                                     Dataset=self.dataset,
+                                     Position=self.posname,
+                                     Hybe=self.hybe,
+                                     Type='log')
+            self.utilities.save_data('Failed',
+                                     Dataset=self.dataset,
+                                     Position=self.posname,
+                                     Hybe=self.hybe,
+                                     Type='flag')
+            self.utilities.save_data(str(self.hybe)+' Failed',
+                                     Dataset=self.dataset,
+                                     Position=self.posname,
+                                     Type='log')
+            self.utilities.save_data('Failed',
+                                     Dataset=self.dataset,
+                                     Position=self.posname,
+                                     Type='flag')
         if self.verbose:
             self.update_user('Loading Stack')
         # Should add a way to exclude cells from bead find
@@ -410,22 +520,37 @@ class Registration_Class(object):
             self.save_tforms()
             
     def report_failure(self,log):
-        self.fishdata.add_and_save_data(log,'log',
-                                        dataset=self.dataset,posname=self.posname,
-                                        hybe=self.hybe,channel=self.channel)
-        self.fishdata.add_and_save_data('Failed','flag',
-                                        dataset=self.dataset,posname=self.posname,
-                                        hybe=self.hybe,channel=self.channel)
-        self.fishdata.add_and_save_data('Registration Failed','log',
-                                        dataset=self.dataset,posname=self.posname,
-                                        hybe=self.hybe)
-        self.fishdata.add_and_save_data('Failed','flag',
-                                        dataset=self.dataset,posname=self.posname,
-                                        hybe=self.hybe)
-        self.fishdata.add_and_save_data(str(self.hybe)+' Failed','log',
-                                        dataset=self.dataset,posname=self.posname)
-        self.fishdata.add_and_save_data('Failed','flag',
-                                        dataset=self.dataset,posname=self.posname)
+        self.utilities.save_data(log,
+                                 Dataset=self.dataset,
+                                 Position=self.posname,
+                                 Hybe=self.hybe,
+                                 Channel=self.channel,
+                                 Type='log')
+        self.utilities.save_data('Failed',
+                                 Dataset=self.dataset,
+                                 Position=self.posname,
+                                 Hybe=self.hybe,
+                                 Channel=self.channel,
+                                 Type='flag')
+        self.utilities.save_data('Registration Failed',
+                                 Dataset=self.dataset,
+                                 Position=self.posname,
+                                 Hybe=self.hybe,
+                                 Type='log')
+        self.utilities.save_data('Failed',
+                                 Dataset=self.dataset,
+                                 Position=self.posname,
+                                 Hybe=self.hybe,
+                                 Type='flag')
+        self.utilities.save_data(str(self.hybe)+' Failed',
+                                 Dataset=self.dataset,
+                                 Position=self.posname,
+                                 Type='log')
+        self.utilities.save_data('Failed',
+                                 Dataset=self.dataset,
+                                 Position=self.posname,
+                                 Type='flag')
+
         
     def load_ref(self):
         beads = self.fishdata.load_data('beads',dataset=self.dataset,posname=self.posname,hybe=self.ref_hybe)
@@ -500,12 +625,36 @@ class Registration_Class(object):
                 if self.verbose:
                     self.update_user('Not enough reference beads found.')
                 self.passed = False
-                self.fishdata.add_and_save_data('Not enough reference beads found.','log',dataset=self.dataset,posname=self.posname,hybe=self.hybe,channel=self.channel)
-                self.fishdata.add_and_save_data('Failed','flag',dataset=self.dataset,posname=self.posname,hybe=self.hybe,channel=self.channel)
-                self.fishdata.add_and_save_data('Registration Failed','log',dataset=self.dataset,posname=self.posname,hybe=self.hybe)
-                self.fishdata.add_and_save_data('Failed','flag',dataset=self.dataset,posname=self.posname,hybe=self.hybe)
-                self.fishdata.add_and_save_data(str(self.hybe)+' Failed','log',dataset=self.dataset,posname=self.posname)
-                self.fishdata.add_and_save_data('Failed','flag',dataset=self.dataset,posname=self.posname)
+                self.utilities.save_data('Not enough reference beads found.',
+                                        Dataset=self.dataset,
+                                        Position=self.posname,
+                                        Hybe=self.hybe,
+                                        Channel=self.channel,
+                                        Type='log')
+                self.utilities.save_data('Failed',
+                                        Dataset=self.dataset,
+                                        Position=self.posname,
+                                        Hybe=self.hybe,
+                                        Channel=self.channel,
+                                        Type='flag')
+                self.utilities.save_data('Registration Failed',
+                                         Dataset=self.dataset,
+                                         Position=self.posname,
+                                         Hybe=self.hybe,
+                                         Type='log')
+                self.utilities.save_data('Failed',
+                                         Dataset=self.dataset,
+                                         Position=self.posname,
+                                         Hybe=self.hybe,
+                                         Type='flag')
+                self.utilities.save_data(str(self.hybe)+' Failed',
+                                         Dataset=self.dataset,
+                                         Position=self.posname,
+                                         Type='log')
+                self.utilities.save_data('Failed',
+                                         Dataset=self.dataset,
+                                         Position=self.posname,
+                                         Type='flag')
             if self.passed:
                 t_est = np.stack(t_est, axis=0)
                 self.db_clusts.fit(t_est)
@@ -517,12 +666,36 @@ class Registration_Class(object):
                     if self.verbose:
                         self.update_user('Index Error')
                     self.passed = False
-                    self.fishdata.add_and_save_data('Not enough reference beads found.','log',dataset=self.dataset,posname=self.posname,hybe=self.hybe,channel=self.channel)
-                    self.fishdata.add_and_save_data('Failed','flag',dataset=self.dataset,posname=self.posname,hybe=self.hybe,channel=self.channel)
-                    self.fishdata.add_and_save_data('Registration Failed','log',dataset=self.dataset,posname=self.posname,hybe=self.hybe)
-                    self.fishdata.add_and_save_data('Failed','flag',dataset=self.dataset,posname=self.posname,hybe=self.hybe)
-                    self.fishdata.add_and_save_data(str(self.hybe)+' Failed','log',dataset=self.dataset,posname=self.posname)
-                    self.fishdata.add_and_save_data('Failed','flag',dataset=self.dataset,posname=self.posname)
+                    self.utilities.save_data('Not enough reference beads found.',
+                                            Dataset=self.dataset,
+                                            Position=self.posname,
+                                            Hybe=self.hybe,
+                                            Channel=self.channel,
+                                            Type='log')
+                    self.utilities.save_data('Failed',
+                                            Dataset=self.dataset,
+                                            Position=self.posname,
+                                            Hybe=self.hybe,
+                                            Channel=self.channel,
+                                            Type='flag')
+                    self.utilities.save_data('Registration Failed',
+                                             Dataset=self.dataset,
+                                             Position=self.posname,
+                                             Hybe=self.hybe,
+                                             Type='log')
+                    self.utilities.save_data('Failed',
+                                             Dataset=self.dataset,
+                                             Position=self.posname,
+                                             Hybe=self.hybe,
+                                             Type='flag')
+                    self.utilities.save_data(str(self.hybe)+' Failed',
+                                             Dataset=self.dataset,
+                                             Position=self.posname,
+                                             Type='log')
+                    self.utilities.save_data('Failed',
+                                             Dataset=self.dataset,
+                                             Position=self.posname,
+                                             Type='flag')
             if self.passed:
                 paired_beads_idx = self.db_clusts.labels_==most_frequent_cluster
                 ref = ref_beads[paired_beads_idx]
@@ -540,12 +713,36 @@ class Registration_Class(object):
                     if self.verbose:
                         self.update_user(str(self.error))
                     self.passed = False
-                    self.fishdata.add_and_save_data('Residual too high '+str(opt_t[1]),'log',dataset=self.dataset,posname=self.posname,hybe=self.hybe,channel=self.channel)
-                    self.fishdata.add_and_save_data('Failed','flag',dataset=self.dataset,posname=self.posname,hybe=self.hybe,channel=self.channel)
-                    self.fishdata.add_and_save_data('Registration Failed','log',dataset=self.dataset,posname=self.posname,hybe=self.hybe)
-                    self.fishdata.add_and_save_data('Failed','flag',dataset=self.dataset,posname=self.posname,hybe=self.hybe)
-                    self.fishdata.add_and_save_data(str(self.hybe)+' Failed','log',dataset=self.dataset,posname=self.posname)
-                    self.fishdata.add_and_save_data('Failed','flag',dataset=self.dataset,posname=self.posname)
+                    self.utilities.save_data('Residual too high '+str(opt_t[1]),
+                                            Dataset=self.dataset,
+                                            Position=self.posname,
+                                            Hybe=self.hybe,
+                                            Channel=self.channel,
+                                            Type='log')
+                    self.utilities.save_data('Failed',
+                                            Dataset=self.dataset,
+                                            Position=self.posname,
+                                            Hybe=self.hybe,
+                                            Channel=self.channel,
+                                            Type='flag')
+                    self.utilities.save_data('Registration Failed',
+                                             Dataset=self.dataset,
+                                             Position=self.posname,
+                                             Hybe=self.hybe,
+                                             Type='log')
+                    self.utilities.save_data('Failed',
+                                             Dataset=self.dataset,
+                                             Position=self.posname,
+                                             Hybe=self.hybe,
+                                             Type='flag')
+                    self.utilities.save_data(str(self.hybe)+' Failed',
+                                             Dataset=self.dataset,
+                                             Position=self.posname,
+                                             Type='log')
+                    self.utilities.save_data('Failed',
+                                             Dataset=self.dataset,
+                                             Position=self.posname,
+                                             Type='flag')
                 self.translation_x = opt_t[0][1]
                 self.translation_y = opt_t[0][0]
                 self.translation_z = opt_t[0][2]
@@ -561,7 +758,12 @@ class Registration_Class(object):
         
     def save_tforms(self):
         self.tforms = {'x':self.translation_x,'y':self.translation_y,'z':self.translation_z}
-        self.fishdata.add_and_save_data('Passed','flag',dataset=self.dataset,posname=self.posname,hybe=self.hybe,channel=self.channel)
         self.fishdata.add_and_save_data(self.tforms,'tforms',dataset=self.dataset,posname=self.posname,hybe=self.hybe)
         self.completed = True
+        self.utilities.save_data('Passed',
+                                 Dataset=self.dataset,
+                                 Position=self.posname,
+                                 Hybe=self.hybe,
+                                 Channel=self.channel,
+                                 Type='flag')
         

@@ -24,6 +24,12 @@ class Utilities_Class(object):
         if Type in ['image','stack']:
             File_Name = str(Dataset)+'_'+str(Position)+'_'+str(Hybe)+'_'+str(Channel)+'_'+str(Zindex)+'_'+str(Type)+'.tif'
             tifffile.imwrite(os.path.join(self.utilities_path,File_Name),data=data)
+        elif Type in ['flag','log']:
+            File_Name = str(Dataset)+'_'+str(Position)+'_'+str(Hybe)+'_'+str(Channel)+'_'+str(Zindex)+'_'+str(Type)+'.csv'
+            fname = os.path.join(self.utilities_path,File_Name)
+            with open(fname,"w+") as f:
+                f.write(str(data))
+                f.close()
         else:
             File_Name = str(Dataset)+'_'+str(Position)+'_'+str(Hybe)+'_'+str(Channel)+'_'+str(Zindex)+'_'+str(Type)+'.pkl'
             pickle.dump(data,open(os.path.join(self.utilities_path,File_Name),'wb'))
@@ -40,6 +46,12 @@ class Utilities_Class(object):
             if Type in ['image','stack']:
                 File_Name = str(Dataset)+'_'+str(Position)+'_'+str(Hybe)+'_'+str(Channel)+'_'+str(Zindex)+'_'+str(Type)+'.tif'
                 data = tifffile.imread(os.path.join(self.utilities_path,File_Name))
+            elif Type in ['flag','log']:
+                File_Name = str(Dataset)+'_'+str(Position)+'_'+str(Hybe)+'_'+str(Channel)+'_'+str(Zindex)+'_'+str(Type)+'.csv'
+                fname = os.path.join(self.utilities_path,File_Name)
+                with open(fname,"r") as f:
+                    data = f.read()
+                    f.close()
             else:
                 File_Name = str(Dataset)+'_'+str(Position)+'_'+str(Hybe)+'_'+str(Channel)+'_'+str(Zindex)+'_'+str(Type)+'.pkl'
                 data = pickle.load(open(os.path.join(self.utilities_path,File_Name),'rb'))

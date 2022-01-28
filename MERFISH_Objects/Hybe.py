@@ -45,6 +45,9 @@ class Hybe_Class(object):
         
         self.completed = False
         self.passed = True
+        
+        self.fishdata = FISHData(os.path.join(self.metadata_path,self.parameters['fishdata']))
+        self.utilities = Utilities_Class(self.parameters['utilities_path'])
 
     def run(self):
         self.check_flags()
@@ -57,25 +60,19 @@ class Hybe_Class(object):
         if self.verbose:
             self.update_user('Checking Flags')
         self.failed = False
-        self.fishdata = FISHData(os.path.join(self.metadata_path,self.parameters['fishdata']))
         #Position
-        flag = self.fishdata.load_data('flag',dataset=self.dataset,
-                                       posname=self.posname)
+        flag = self.utilities.load_data(Dataset=self.dataset,Position=self.posname,Type='flag')
         if flag == 'Failed':
             log = self.posname+' Failed'
             self.completed = True
             self.failed = True
         if self.failed:
             self.completed = True
-            self.fishdata.add_and_save_data('Failed','flag',dataset=self.dataset,
-                                                posname=self.posname,hybe=self.hybe)
-            self.fishdata.add_and_save_data(log,'log',
-                                                dataset=self.dataset,posname=self.posname,
-                                                hybe=self.hybe)
+            self.utilities.save_data('Failed',Dataset=self.dataset,Position=self.posname,Hybe=self.hybe,Type='flag')
+            self.utilities.save_data(log,Dataset=self.dataset,Position=self.posname,Hybe=self.hybe,Type='log')
         #Hybe
         if not self.failed:
-            flag = self.fishdata.load_data('flag',dataset=self.dataset,
-                                           posname=self.posname,hybe=self.hybe)
+            flag = self.utilities.load_data(Dataset=self.dataset,Position=self.posname,Hybe=self.hybe,Type='flag')
             if flag == 'Failed':
                 log = self.hybe+' Failed'
                 self.completed = True
@@ -87,19 +84,24 @@ class Hybe_Class(object):
     def check_registration(self):
         if self.verbose:
             self.update_user('Checking Registration Flags')
-        flag =  self.fishdata.load_data('flag',dataset=self.dataset,
-                                        posname=self.posname,
-                                        hybe=self.hybe,
-                                        channel=self.parameters['registration_channel'])
+        flag = self.utilities.load_data(Dataset=self.dataset,
+                                        Position=self.posname,
+                                        Hybe=self.hybe,
+                                        Channel=self.parameters['registration_channel'],
+                                        Type='flag')
         if isinstance(flag,type(None)):
             self.create_registration()
         elif flag == 'Started':
+            fname = self.dataset+'_'+self.posname+'_'+self.hybe+'.pkl'
+            fname_path = os.path.join(self.registration_daemon_path,'input',fname)
+            if not os.path.exists(fname_path):
+                self.create_registration()
             pass
         elif flag == 'Passed':
             self.check_stacks()
         elif flag =='Failed':
-            self.fishdata.add_and_save_data('Failed','flag',dataset=self.dataset,posname=self.posname,hybe=self.hybe)
-            self.fishdata.add_and_save_data('Registration Failed','log',dataset=self.dataset,posname=self.posname,hybe=self.hybe)
+            self.utilities.save_data('Failed',Dataset=self.dataset,Position=self.posname,Hybe=self.hybe,Type='flag')
+            self.utilities.save_data('Registration Failed',Dataset=self.dataset,Position=self.posname,Hybe=self.hybe,Type='log')
             self.completed = True 
 
     def check_stacks(self):
@@ -116,32 +118,28 @@ class Hybe_Class(object):
         self.passed = []
         self.failed = []
         for channel in iterable:
-            flag =  self.fishdata.load_data('flag',dataset=self.dataset,posname=self.posname,hybe=self.hybe,channel=channel)
+            flag = self.utilities.load_data(Dataset=self.dataset,Position=self.posname,Hybe=self.hybe,Channel=channel,Type='flag')
             if isinstance(flag,type(None)):
                 self.not_started.append(channel)
             elif flag=='Started':
-                self.started.append(channel)
+                fname = self.dataset+'_'+self.posname+'_'+self.hybe+'_'+channel+'.pkl'
+                fname_path = os.path.join(self.stk_daemon_path,'input',fname)
+                if os.path.exists(fname_path):
+                    self.started.append(channel)
+                else:
+                    self.not_started.append(channel)
             elif flag=='Passed':
                 self.passed.append(channel)
             elif flag =='Failed':
                 self.failed.append(channel)
-                self.fishdata.add_and_save_data('Failed','flag',
-                                                dataset=self.dataset,
-                                                posname=self.posname,
-                                                hybe=self.hybe)
-                self.fishdata.add_and_save_data(str(channel+' Failed'),'log',
-                                                dataset=self.dataset,
-                                                posname=self.posname,
-                                                hybe=self.hybe)
+                self.utilities.save_data('Failed',Dataset=self.dataset,Position=self.posname,Hybe=self.hybe,Type='flag')
+                self.utilities.save_data(str(channel+' Failed'),Dataset=self.dataset,Position=self.posname,Hybe=self.hybe,Type='log')
                 self.completed = True
         if not self.completed:
             if len(self.not_started)==0: # All channels started
                 if len(self.started)==0: # All channels finished
                     self.completed = True
-                    self.fishdata.add_and_save_data('Passed','flag',
-                                                    dataset=self.dataset,
-                                                    posname=self.posname,
-                                                    hybe=self.hybe)
+                    self.utilities.save_data('Passed',Dataset=self.dataset,Position=self.posname,Hybe=self.hybe,Type='flag')
             else:
                 self.create_stacks()
             
@@ -158,11 +156,13 @@ class Hybe_Class(object):
                 'cword_config':self.cword_config,
                 'level':'registration'}
         pickle.dump(data,open(fname_path,'wb'))
-        self.flag = self.fishdata.add_and_save_data('Started','flag',
-                                                    dataset=self.dataset,
-                                                    posname=self.posname,
-                                                    hybe=self.hybe,
-                                                    channel=self.parameters['registration_channel'])
+        self.utilities.save_data('Started',
+                                 Dataset=self.dataset,
+                                 Position=self.posname,
+                                 Hybe=self.hybe,
+                                 Channel=self.parameters['registration_channel'],
+                                 Type='flag')
+
             
     def create_stacks(self):
         if self.verbose:
@@ -180,9 +180,10 @@ class Hybe_Class(object):
                 'cword_config':self.cword_config,
                 'level':'stack'}
             pickle.dump(data,open(fname_path,'wb'))
-            self.flag = self.fishdata.add_and_save_data('Started','flag',
-                                                        dataset=self.dataset,
-                                                        posname=self.posname,
-                                                        hybe=self.hybe,
-                                                        channel=channel)
+            self.utilities.save_data('Started',
+                                 Dataset=self.dataset,
+                                 Position=self.posname,
+                                 Hybe=self.hybe,
+                                 Channel=channel,
+                                 Type='flag')
   

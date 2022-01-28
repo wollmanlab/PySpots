@@ -23,6 +23,7 @@ if __name__ == '__main__':
     parser.add_argument("dtype", type=str, help="dtype.")
     parser.add_argument("-d", "--daemon_path", type=str, dest="daemon_path", default='/scratch/daemon', action='store', help="daemon_path")
     parser.add_argument("-n", "--ncpu", type=int, dest="ncpu", default=1, action='store', help="Number of cores")
+    parser.add_argument("-b", "--batch", type=int, dest="batch", default=500, action='store', help="Number in a batch")
     parser.add_argument("-i", "--interval", type=int, dest="interval", default=1, action='store', help="wait time")
     parser.add_argument("-v", "--verbose", type=bool, dest="verbose", default=True, action='store', help="loading bar")
     parser.add_argument("-ve", "--error_verbose", type=bool, dest="error_verbose", default=True, action='store', help="print errors")
@@ -39,6 +40,7 @@ if __name__ == '__main__':
                                 ncpu=args.ncpu,
                                 verbose=args.verbose,
                                 class_verbose=args.class_verbose,
+                                batch = args.batch,
                                 error_verbose = args.error_verbose)
     while True:
         time.sleep(100)

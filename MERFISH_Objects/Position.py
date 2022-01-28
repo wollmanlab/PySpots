@@ -43,6 +43,7 @@ class Position_Class(object):
         self.all_hybes = list(np.unique([hybe for seq,hybe,channel in self.bitmap]))
         self.hybe_fnames_list = [str(self.dataset+'_'+self.posname+'_'+hybe+'.pkl') for hybe in self.all_hybes]
         self.fishdata = FISHData(os.path.join(self.metadata_path,self.parameters['fishdata']))
+        self.utilities = Utilities_Class(self.parameters['utilities_path'])
         
         self.projection_zstart=self.parameters['projection_zstart'] 
         self.projection_k=self.parameters['projection_k']
@@ -80,7 +81,7 @@ class Position_Class(object):
     def check_flag(self):
         if self.verbose:
             self.update_user('Checking Flag')
-        flag = self.fishdata.load_data('flag',dataset=self.dataset,posname=self.posname)
+        flag = self.utilities.load_data(Dataset=self.dataset,Position=self.posname,Type='flag')
         if flag == 'Failed':
             self.failed = True
             self.completed = True
@@ -99,20 +100,20 @@ class Position_Class(object):
 
     def check_segmentation(self):
         """ check segmentation flag"""
-        flag = self.fishdata.load_data('flag',dataset=self.dataset,
-                                       posname=self.posname,
-                                       channel=self.parameters['nucstain_channel'])
+        flag = self.utilities.load_data(Dataset=self.dataset,Position=self.posname,Channel=self.parameters['nucstain_channel'],Type='flag')
+        
         if self.verbose:
             self.update_user('Checking Segmentation')
         if flag == 'Started':
-            do = 'nothing'
+            """ verify that the pkl has been made"""
+            fname = self.dataset+'_'+self.posname+'.pkl'
+            self.segmentation_daemon_path = os.path.join(self.daemon_path,'segmentation')
+            fname_path = os.path.join(self.segmentation_daemon_path,'input',fname)
+            if not os.path.exists(fname_path):
+                self.create_segmentation()
         elif flag =='Failed':
-            self.fishdata.add_and_save_data('Failed','flag',
-                                            dataset=self.dataset,
-                                            posname=self.posname)
-            self.fishdata.add_and_save_data('Segmentation Failed','log',
-                                            dataset=self.dataset,
-                                            posname=self.posname)
+            self.utilities.save_data('Failed',Dataset=self.dataset,Position=self.posname,Type='flag')
+            self.utilities.save_data('Segmentation Failed',Dataset=self.dataset,Position=self.posname,Type='log')
         elif flag =='Passed':
             self.segmentation_completed = True
         else:
@@ -122,9 +123,9 @@ class Position_Class(object):
         """create segmentation object"""
         self.segmentation_daemon_path = os.path.join(self.daemon_path,'segmentation')
         if not os.path.exists(self.segmentation_daemon_path):
-                os.mkdir(self.segmentation_daemon_path)
-                os.mkdir(os.path.join(self.segmentation_daemon_path,'input'))
-                os.mkdir(os.path.join(self.segmentation_daemon_path,'output'))
+            os.mkdir(self.segmentation_daemon_path)
+            os.mkdir(os.path.join(self.segmentation_daemon_path,'input'))
+            os.mkdir(os.path.join(self.segmentation_daemon_path,'output'))
         fname = self.dataset+'_'+self.posname+'.pkl'
         fname_path = os.path.join(self.segmentation_daemon_path,'input',fname)
         data = {'metadata_path':self.metadata_path,
@@ -133,10 +134,11 @@ class Position_Class(object):
                     'cword_config':self.cword_config,
                     'level':'segmentation'}
         pickle.dump(data,open(fname_path,'wb'))
-        self.fishdata.add_and_save_data('Started','flag',
-                                            dataset=self.dataset,
-                                            posname=self.posname,
-                                            channel=self.parameters['nucstain_channel'])
+        self.utilities.save_data('Started',
+                                 Dataset=self.dataset,
+                                 Position=self.posname,
+                                 Channel=self.parameters['nucstain_channel'],
+                                 Type='flag')
         
     def check_hybes(self):
         if self.verbose:
@@ -148,22 +150,25 @@ class Position_Class(object):
         self.not_started = []
         self.failed = []
         for hybe in iterable:
-            flag =  self.fishdata.load_data('flag',dataset=self.dataset,
-                                            posname=self.posname,hybe=hybe)
+            flag = self.utilities.load_data(Dataset=self.dataset,
+                                 Position=self.posname,Hybe=hybe,Type='flag')
             if isinstance(flag,type(None)):
                 self.not_started.append(hybe)
             elif flag == 'Started':
-                self.started.append(hybe)
+                """ Verify that the file exists"""
+                self.hybe_daemon_path = os.path.join(self.daemon_path,'hybe')
+                fname = self.dataset+'_'+self.posname+'_'+hybe+'.pkl'
+                fname_path = os.path.join(self.hybe_daemon_path,'input',fname)
+                if os.path.exists(fname_path):
+                    self.started.append(hybe)
+                else:
+                    self.not_started.append(hybe)
             elif flag == 'Passed':
                 self.passed.append(hybe)
             elif flag =='Failed':
                 self.failed.append(hybe)
-                self.fishdata.add_and_save_data('Failed','flag',
-                                                        dataset=self.dataset,
-                                                        posname=self.posname)
-                self.fishdata.add_and_save_data(str(hybe+' Failed'),'log',
-                                                        dataset=self.dataset,
-                                                        posname=self.posname)
+                self.utilities.save_data('Failed',Dataset=self.dataset,Position=self.posname,Type='flag')
+                self.utilities.save_data(str(hybe+' Failed'),Dataset=self.dataset,Position=self.posname,Type='log')
         if not self.completed:
             if len(self.not_started)==0: # All hybes have been started
                 if len(self.started)==0: # All imaged hybes have been completed
@@ -193,10 +198,7 @@ class Position_Class(object):
                     'cword_config':self.cword_config,
                     'level':'hybe'}
             pickle.dump(data,open(fname_path,'wb'))
-            self.fishdata.add_and_save_data('Started','flag',
-                                                        dataset=self.dataset,
-                                                        posname=self.posname,
-                                                        hybe=hybe)
+            self.utilities.save_data('Started',Dataset=self.dataset,Position=self.posname,Hybe=hybe,Type='flag')
         
     def check_projection(self):
         if self.verbose:
@@ -236,14 +238,18 @@ class Position_Class(object):
         self.not_started = []
         self.failed = []
         for zindex in iterable:
-            flag =  self.fishdata.load_data('flag',
-                                            dataset=self.dataset,
-                                            posname=self.posname,
-                                            zindex=zindex)
+            flag = self.utilities.load_data(Dataset=self.dataset,Position=self.posname,Zindex=zindex,Type='flag')
             if isinstance(flag,type(None)):
                 self.not_started.append(zindex)
             elif flag == 'Started':
-                self.started.append(zindex)
+                """ Check that the file exists"""
+                self.classify_daemon_path = os.path.join(self.daemon_path,'classification')
+                fname = self.dataset+'_'+self.posname+'_'+str(zindex)+'.pkl'
+                fname_path = os.path.join(self.classify_daemon_path,'input',fname)
+                if os.path.exists(fname_path):
+                    self.started.append(zindex)
+                else:
+                    self.not_started.append(zindex)
             elif flag == 'Passed':
                 self.passed.append(zindex)
             elif flag =='Failed':
@@ -258,19 +264,19 @@ class Position_Class(object):
                         self.completed = True
                         if len(self.failed)==len(self.zindexes):
                             """ Add Log"""
-                            self.fishdata.add_and_save_data('No Transcripts Detected',
-                                                            'log',
-                                                            dataset=self.dataset,
-                                                            posname=self.posname)
-                            """ Update flag"""
-                            self.fishdata.add_and_save_data('Failed',
-                                                            'flag',
-                                                            dataset=self.dataset,
-                                                            posname=self.posname)
+                            self.utilities.save_data('No Transcripts Detected',
+                                                     Dataset=self.dataset,
+                                                     Position=self.posname,
+                                                     Type='log')
+                            self.utilities.save_data('Failed',
+                                                     Dataset=self.dataset,
+                                                     Position=self.posname,
+                                                     Type='flag')
                         else:
-                            self.fishdata.add_and_save_data('Passed','flag',
-                                            dataset=self.dataset,
-                                            posname=self.posname)
+                            self.utilities.save_data('Passed',
+                                                     Dataset=self.dataset,
+                                                     Position=self.posname,
+                                                     Type='flag')
             else:
                 self.create_classification()
                         
@@ -294,7 +300,8 @@ class Position_Class(object):
                     'cword_config':self.cword_config,
                     'level':'classification'}
             pickle.dump(data,open(fname_path,'wb'))
-            self.fishdata.add_and_save_data('Started','flag',
-                                                        dataset=self.dataset,
-                                                        posname=self.posname,
-                                                        zindex=zindex)
+            self.utilities.save_data('Started',
+                                     Dataset=self.dataset,
+                                     Position=self.posname,
+                                     Zindex=zindex,
+                                     Type='flag')

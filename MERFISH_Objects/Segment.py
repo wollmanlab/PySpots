@@ -30,6 +30,7 @@ from datetime import datetime
 
 import importlib
 from MERFISH_Objects.FISHData import *
+from MERFISH_Objects.Utilities import *
 from metadata import Metadata
 import os
 from fish_helpers import *
@@ -74,6 +75,7 @@ class Segment_Class(object):
         self.z_step_size = self.parameters['segment_z_step_size']
 
         self.fishdata = FISHData(os.path.join(self.metadata_path,self.parameters['fishdata']))
+        self.utilities = Utilities_Class(self.parameters['utilities_path'])
             
         cellpose_inputs = {}
         cellpose_inputs['model_type'] = self.model_type
@@ -110,27 +112,33 @@ class Segment_Class(object):
             i = [i for i in tqdm([],desc='Checking Flags')]
         self.failed = False
         #Position
-        flag = self.fishdata.load_data('flag',dataset=self.dataset,
-                                       posname=self.posname)
+        flag = self.utilities.load_data(Dataset=self.dataset,
+                                        Position=self.posname,
+                                        Type='flag')
         if flag == 'Failed':
             log = self.posname+' Failed'
-            self.completed = True
             self.failed = True
         # Segmentation
-        flag = self.fishdata.load_data('flag',dataset=self.dataset,
-                                       posname=self.posname,channel=self.channel)
+        flag = self.utilities.load_data(Dataset=self.dataset,
+                                        Position=self.posname,
+                                        Channel=self.channel,
+                                        Type='flag')
         if flag == 'Failed':
             log = 'Segmentation Failed'
-            self.completed = True
             self.failed = True
             
         if self.failed:
-            self.fishdata.add_and_save_data('Failed','flag',dataset=self.dataset,
-                                                posname=self.posname,
-                                                channel=self.channel)
-            self.fishdata.add_and_save_data(log,'log',
-                                                dataset=self.dataset,posname=self.posname,
-                                                channel=self.channel)
+            self.completed = True
+            self.utilities.save_data('Failed',
+                                        Dataset=self.dataset,
+                                        Position=self.posname,
+                                        Channel=self.channel,
+                                        Type='flag')
+            self.utilities.save_data(log,
+                                        Dataset=self.dataset,
+                                        Position=self.posname,
+                                        Channel=self.channel,
+                                        Type='log')
         
     def find_nucstain(self):
         if self.acq == 'infer':
@@ -401,12 +409,12 @@ class Segment_Class(object):
             x,y,z = np.array(region.centroid).astype(int)
             nuclear_area = region.area
             total_area = np.sum(1*(self.voronoi_stack==region.label))
-            metadata.append(pd.DataFrame([cell_id,x,y,z,nuclear_area,total_area,self.posname],index=['cell_id','x_pixel','y_pixel','z_index','nuclear_area','total_area','pos']).T)
+            metadata.append(pd.DataFrame([cell_id,x,y,z,nuclear_area,total_area,self.posname],index=['cell_id','x_pixel','y_pixel','z_index','nuclear_area','total_area','posname']).T)
         if len(metadata)>0:
             metadata = pd.concat(metadata,ignore_index=True)
         else:
             # maybe fail position here
-            metadata = pd.DataFrame(columns=['cell_id','x_pixel','y_pixel','z_index','nuclear_area','total_area','pos'])
+            metadata = pd.DataFrame(columns=['cell_id','x_pixel','y_pixel','z_index','nuclear_area','total_area','posname'])
         self.cell_metadata = metadata
         self.save_masks()
         self.fishdata.add_and_save_data(self.cell_metadata,
@@ -458,8 +466,9 @@ class Segment_Class(object):
             Display(self.mask_images[zindex])
         
     def update_flags(self):
-        self.fishdata.add_and_save_data('Passed','flag',
-                                            dataset=self.dataset,
-                                            posname=self.posname,
-                                            channel='DeepBlue')
+        self.utilities.save_data('Passed',
+                                    Dataset=self.dataset,
+                                    Position=self.posname,
+                                    Channel=self.parameters['registration_channel'],
+                                    Type='flag')
         

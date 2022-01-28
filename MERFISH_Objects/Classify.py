@@ -92,7 +92,11 @@ class Classify_Class(object):
                                               zindex=self.zindex)
         if isinstance(self.transcripts,type(None))==False:
             self.completed = True
-            self.fishdata.add_and_save_data('Passed','flag',dataset=self.dataset,posname=self.posname,zindex=self.zindex)
+            self.utilities.save_data('Passed',
+                                    Dataset=self.dataset,
+                                    Position=self.posname,
+                                    Zindex=self.zindex,
+                                    Type='flag')
         
     def load_spots(self,hybe,channel):
         """ Load Spots Previously Detected """
@@ -138,10 +142,18 @@ class Classify_Class(object):
             self.passed = False
             self.transcripts = None
             self.completed = True
-            """ Add Log"""
-            self.fishdata.add_and_save_data('No Spots Detected','log',dataset=self.dataset,posname=self.posname,zindex=self.zindex)
-            """ Update flag"""
-            self.fishdata.add_and_save_data('Failed','flag',dataset=self.dataset,posname=self.posname,zindex=self.zindex)
+            
+            self.utilities.save_data('Failed',
+                                    Dataset=self.dataset,
+                                    Position=self.posname,
+                                    Zindex=self.zindex,
+                                    Type='flag')
+            self.utilities.save_data('No Spots Detected',
+                                    Dataset=self.dataset,
+                                    Position=self.posname,
+                                    Zindex=self.zindex,
+                                    Type='log')
+
         else:
             self.spots = pd.concat(spots_out,ignore_index=True)
         
@@ -162,10 +174,16 @@ class Classify_Class(object):
             self.passed = False
             self.transcripts = None
             self.completed = True
-            """ Add Log"""
-            self.fishdata.add_and_save_data('No Spots Paired','log',dataset=self.dataset,posname=self.posname,zindex=self.zindex)
-            """ Update flag"""
-            self.fishdata.add_and_save_data('Failed','flag',dataset=self.dataset,posname=self.posname,zindex=self.zindex)
+            self.utilities.save_data('Failed',
+                                    Dataset=self.dataset,
+                                    Position=self.posname,
+                                    Zindex=self.zindex,
+                                    Type='flag')
+            self.utilities.save_data('No Spots Paired',
+                                    Dataset=self.dataset,
+                                    Position=self.posname,
+                                    Zindex=self.zindex,
+                                    Type='log')
         
     def build_barcodes(self):
         """ Build Barcode from paired spots"""
@@ -193,10 +211,16 @@ class Classify_Class(object):
             self.passed = False
             self.transcripts = None
             self.completed = True
-            """ Add Log"""
-            self.fishdata.add_and_save_data('No Codewords Assigned','log',dataset=self.dataset,posname=self.posname,zindex=self.zindex)
-            """ Update flag"""
-            self.fishdata.add_and_save_data('Failed','flag',dataset=self.dataset,posname=self.posname,zindex=self.zindex)
+            self.utilities.save_data('Failed',
+                                    Dataset=self.dataset,
+                                    Position=self.posname,
+                                    Zindex=self.zindex,
+                                    Type='flag')
+            self.utilities.save_data('No Codewords Assigned',
+                                    Dataset=self.dataset,
+                                    Position=self.posname,
+                                    Zindex=self.zindex,
+                                    Type='log')
         else:
             self.spots = self.spots[self.spots['idx'].isin(list(self.good_indices.numpy()))]
         
@@ -316,7 +340,11 @@ class Classify_Class(object):
         if self.verbose:
             self.update_user('Saving Data')
         self.fishdata.add_and_save_data(self.transcripts,'spotcalls',dataset=self.dataset,posname=self.posname,zindex=self.zindex)
-        self.fishdata.add_and_save_data('Passed','flag',dataset=self.dataset,posname=self.posname,zindex=self.zindex)
+        self.utilities.save_data('Passed',
+                                    Dataset=self.dataset,
+                                    Position=self.posname,
+                                    Zindex=self.zindex,
+                                    Type='flag')
         # self.fishdata.add_and_save_data(self.counts,'counts',dataset=self.dataset,posname=self.posname,zindex=self.zindex)
             
     def save_models(self):

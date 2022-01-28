@@ -1,11 +1,4 @@
-import dill as pickle
-import argparse
-import shutil
-import importlib
-import os
-import time
-import sys
-from datetime import datetime
+from MERFISH_Objects.Progress import *
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -13,63 +6,6 @@ if __name__ == '__main__':
     parser.add_argument("cword_config", type=str, help="Name of config file.")
     args = parser.parse_args()
 
-def find_dtype(t):
-    """ dataset_positon_hybe_channel_zindex_flag.txt"""
-    t = t.split('_')
-    if t[-2]!='X':
-        dtype = 'img'
-    elif t[-3]!='X':
-        if t[-3]=='DeepBlue':
-            if t[-4]=='X':
-                dtype='seg'
-            else:
-                dtype = 'reg'
-        else:
-            dtype = 'stk'
-    elif t[-4]!='X':
-        if t[-4]=='all':
-            dtype = 'clas'
-        else:
-            dtype = 'hybe'
-    elif t[-5]!='X':
-        dtype = 'pos'
-    else:
-        dtype = 'dataset'
-    return dtype
-
-def check_status(fishdata_path):
-    out = {}
-    dtypes = ['dataset','pos','seg','clas','hybe','reg','stk','img']
-    outcomes = ['passed','failed','started']
-    for dtype in dtypes:
-        out[dtype] = {}
-        for outcome in outcomes:
-            out[dtype][outcome] = []
-    for fname in os.listdir(fishdata_path):
-        if 'flag' in fname:
-            try:
-                with open(os.path.join(fishdata_path,fname),"r") as f:
-                    t = f.read()
-                    f.close()
-                dtype = find_dtype(fname)
-            except:
-                continue
-            if 'Started'==t:
-                out[dtype]['started'].append(fname)
-            elif 'Passed'==t:
-                out[dtype]['passed'].append(fname)
-            elif 'Failed'==t:
-                out[dtype]['failed'].append(fname)
-                
-    master_string = []
-    for dtype in dtypes:
-        string = dtype+'('
-        for outcome in outcomes:
-            string = string+str(len(out[dtype][outcome]))+':'
-        string = string[:-1]+')'
-        master_string.append(string)
-    p = ''.join(i for i in master_string)
-    return p
 
         
 if __name__ == '__main__':
@@ -114,9 +50,11 @@ if __name__ == '__main__':
     if not os.path.exists(fishdata_path):
         os.mkdir(fishdata_path)
         os.chmod(fishdata_path, 0o777)
-    while not os.path.exists(os.path.join(dataset_daemon_path,'output',fname)):
-        p = check_status(os.path.join(metadata_path,'fishdata'))
-        sys.stdout.write('\r'+str(datetime.now().strftime("%H:%M:%S"))+' '+p+'                     ')
+
+    processed = {}
+    while True:
+        p,processed = check_status(merfish_config.parameters['utilities_path'],processed,dataset)
+        sys.stdout.write('\r'+str(datetime.now().strftime("%H:%M:%S"))+' '+p)
         sys.stdout.flush()
         time.sleep(5)
     

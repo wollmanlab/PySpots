@@ -23,10 +23,11 @@ from filelock import Timeout, FileLock
 from datetime import datetime
 
 class Class_Daemon(object):
-    def __init__(self,directory_path,interval=60,ncpu=10,position=0,class_verbose=False,verbose=False,error_verbose=False,reverse=False):
+    def __init__(self,directory_path,interval=60,ncpu=10,batch=500,position=0,class_verbose=False,verbose=False,error_verbose=False,reverse=False):
         self.reverse = reverse
         self.error_verbose = error_verbose
         self.class_verbose = class_verbose
+        self.batch = int(batch)
         self.verbose=verbose
         self.ncpu=ncpu
         self.position = position
@@ -51,10 +52,10 @@ class Class_Daemon(object):
         self.input = [i for i in os.listdir(self.input_path) if not 'lock' in i]
         if self.ncpu>1:
             if not np.isin(self.type,['hybe','stack','position','channel']):
-                if len(self.input)>5000: # prevents multiprocessing from stuggeling with large numbers (temp fix)
+                if len(self.input)>self.batch: # prevents multiprocessing from stuggeling with large numbers (temp fix)
                     if self.verbose:
-                        print('Processing 5000 out of '+str(len(self.input)))
-                    self.input = np.random.choice(self.input,5000,replace=False)
+                        print('Processing '+str(self.batch)+' out of '+str(len(self.input)))
+                    self.input = np.random.choice(self.input,self.batch,replace=False)
         if self.reverse:
             self.input.reverse()
             
@@ -81,13 +82,17 @@ class Class_Daemon(object):
             with lock:
                 class_object = self.generate_class(input_file)
                 class_object.run()
-                os.remove(input_file+'.lock')
+                if os.path.exists(input_file+'.lock'):
+                    os.remove(input_file+'.lock')
                 if class_object.completed:
                     shutil.move(input_file,os.path.join(self.output_path,file))
 
         except Exception as e:
             try:
-                os.remove(input_file+'.lock')
+                if os.path.exists(input_file+'.lock'):
+                    os.remove(input_file+'.lock')
+                if class_object.completed:
+                    shutil.move(input_file,os.path.join(self.output_path,file))
             except:
                 pass
             if self.error_verbose:

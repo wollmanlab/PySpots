@@ -82,7 +82,7 @@ class Dataset_Class(object):
                                  kernel_size=self.parameters['hotpixel_kernel_size'])
             
     def check_flags(self):
-        self.flag = self.fishdata.add_and_save_data('Started','flag',dataset=self.dataset)
+        self.utilities.save_data('Started',Dataset=self.dataset,Type='flag')
         if self.verbose:
             iterable = tqdm(self.posnames,desc=str(datetime.now().strftime("%H:%M:%S"))+' Checking Position Flags')
         else:
@@ -92,11 +92,16 @@ class Dataset_Class(object):
         self.not_started = []
         self.failed = []
         for posname in iterable:
-            flag =  self.fishdata.load_data('flag',dataset=self.dataset,posname=posname)
+            flag = self.utilities.load_data(Dataset=self.dataset,Position=posname,Type='flag')
             if isinstance(flag,type(None)):
                 self.not_started.append(posname)
             elif flag == 'Started':
-                self.started.append(posname)
+                fname = self.dataset+'_'+posname+'.pkl'
+                fname_path = os.path.join(self.position_daemon_path,'input',fname)
+                if os.path.exists(fname_path):
+                    self.started.append(posname)
+                else:
+                    self.not_started.append(posname)
             elif flag == 'Passed':
                 self.passed.append(posname)
             elif flag =='Failed':
@@ -122,9 +127,7 @@ class Dataset_Class(object):
                     'cword_config':self.cword_config,
                     'level':'position'}
             pickle.dump(data,open(fname_path,'wb'))
-            self.fishdata.add_and_save_data('Started','flag',
-                                                        dataset=self.dataset,
-                                                        posname=posname)
+            flag = self.utilities.save_data('Started',Dataset=self.dataset,Position=posname,Type='flag')
             
     def find_hot_pixels(self,std_thresh=3,n_acqs=5,kernel_size=3):
         if self.verbose:
@@ -207,6 +210,8 @@ class Dataset_Class(object):
         cell_metadata_full = []
         for posname in self.posnames:
             cell_metadata = self.fishdata.load_data('cell_metadata',dataset=self.dataset,posname=posname)
+            if isinstance(cell_metadata,type(None)):
+                continue
             cell_metadata['posname'] = posname
             cell_metadata_full.append(cell_metadata)
             """ for all zindexes"""
@@ -265,7 +270,10 @@ class Dataset_Class(object):
         data = self.transcripts[columns]
         self.load_models() 
         predictions = self.logmodel.predict(data.drop('X',axis=1))
+        # probabilities = self.logmodel.predict_proba(data.drop('X',axis=1))
+        # self.transcripts['probabilities'] = probabilities
         self.transcripts['predicted_X'] = predictions
+        """ Instead filter by probability to 5% FPR """
         self.transcripts = self.transcripts[self.transcripts['predicted_X']=='True']
         self.transcripts['gene'] = np.array(self.merfish_config.aids)[self.transcripts.cword_idx]
         
@@ -293,7 +301,7 @@ class Dataset_Class(object):
         self.fishdata.add_and_save_data(self.counts,'counts',dataset=self.dataset)
         self.fishdata.add_and_save_data(self.cell_metadata,'cell_metadata',dataset=self.dataset)
         self.completed=True
-        self.fishdata.add_and_save_data('Passed','flag',dataset=self.dataset)
+        self.utilities.save_data('Passed',Dataset=self.dataset,Type='flag')
             
     def save_models(self):
         """ Save Models """

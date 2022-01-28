@@ -51,6 +51,9 @@ class Stack_Class(object):
         self.passed = True
         self.images_completed=False
         self.deconvolution_completed=False
+        
+        self.fishdata = FISHData(os.path.join(self.metadata_path,self.parameters['fishdata']))
+        self.utilities = Utilities_Class(self.parameters['utilities_path'])
 
     def run(self):
         self.check_flags()
@@ -63,34 +66,44 @@ class Stack_Class(object):
         if self.verbose:
             self.update_user('Checking Flags')
         self.failed = False
-        self.fishdata = FISHData(os.path.join(self.metadata_path,self.parameters['fishdata']))
         #Position
-        flag = self.fishdata.load_data('flag',dataset=self.dataset,
-                                       posname=self.posname)
+        flag = self.utilities.load_data(Dataset=self.dataset,
+                                        Position=self.posname,
+                                        Type='flag')
         if flag == 'Failed':
             log = self.posname+' Failed'
             self.completed = True
             self.failed = True
         #Hybe
         if not self.failed:
-            flag = self.fishdata.load_data('flag',dataset=self.dataset,
-                                           posname=self.posname,hybe=self.hybe)
+            flag = self.utilities.load_data(Dataset=self.dataset,
+                                            Position=self.posname,
+                                            Hybe=self.hybe,
+                                            Type='flag')
             if flag == 'Failed':
                 log = self.hybe+' Failed'
                 self.completed = True
                 self.failed = True
         if self.failed:
-            self.fishdata.add_and_save_data('Failed','flag',dataset=self.dataset,
-                                                posname=self.posname,hybe=self.hybe,
-                                                channel=self.channel)
-            self.fishdata.add_and_save_data(log,'log',
-                                                dataset=self.dataset,posname=self.posname,
-                                                hybe=self.hybe,channel=self.channel)
+            self.utilities.save_data('Failed',
+                                    Dataset=self.dataset,
+                                    Position=self.posname,
+                                    Hybe=self.hybe,
+                                    Channel=self.channel,
+                                    Type='flag')
+            self.utilities.save_data(log,
+                                    Dataset=self.dataset,
+                                    Position=self.posname,
+                                    Hybe=self.hybe,
+                                    Channel=self.channel,
+                                    Type='log')
         #Stack
         if not self.failed:
-            flag = self.fishdata.load_data('flag',dataset=self.dataset,
-                                           posname=self.posname,hybe=self.hybe,
-                                           channel=self.channel)
+            flag = self.utilities.load_data(Dataset=self.dataset,
+                                            Position=self.posname,
+                                            Hybe=self.hybe,
+                                            Channel=self.channel,
+                                            Type='flag')
             if flag == 'Failed':
                 log = self.channel+' Failed'
                 self.completed = True
@@ -115,13 +128,21 @@ class Stack_Class(object):
         self.failed = []
         for zindex in iterable:
             zindex = str(zindex)
-            flag =  self.fishdata.load_data('flag',dataset=self.dataset,
-                                            posname=self.posname,hybe=self.hybe,
-                                            channel=self.channel,zindex=zindex)
+            flag = self.utilities.load_data(Dataset=self.dataset,
+                                            Position=self.posname,
+                                            Hybe=self.hybe,
+                                            Channel=self.channel,
+                                            Zindex=zindex,
+                                            Type='flag')
             if isinstance(flag,type(None)):
                 self.not_started.append(zindex)
             elif flag == 'Started':
-                self.started.append(zindex)
+                fname = self.dataset+'_'+self.posname+'_'+self.hybe+'_'+self.channel+'_'+str(zindex)+'.pkl'
+                fname_path = os.path.join(self.image_daemon_path,'input',fname)
+                if os.path.exists(fname_path):
+                    self.started.append(zindex)
+                else:
+                    self.not_started.append(zindex)
             elif flag == 'Passed':
                 self.passed.append(zindex)
             elif flag =='Failed':
@@ -131,12 +152,12 @@ class Stack_Class(object):
             if len(self.started)==0: # All Images have been completed
                 self.images_completed = True
                 self.completed = True
-                self.fishdata.add_and_save_data('Passed',
-                                                'flag',
-                                                dataset=self.dataset,
-                                                posname=self.posname,
-                                                hybe=self.hybe,
-                                                channel=self.channel)
+                self.utilities.save_data('Passed',
+                                            Dataset=self.dataset,
+                                            Position=self.posname,
+                                            Hybe=self.hybe,
+                                            Channel=self.channel,
+                                            Type='flag')
         else:
             self.create_images()
             
@@ -158,12 +179,13 @@ class Stack_Class(object):
                         'cword_config':self.cword_config,
                         'level':'image'}
                 pickle.dump(data,open(fname_path,'wb'))
-                self.flag = self.fishdata.add_and_save_data('Started','flag',
-                                                            dataset=self.dataset,
-                                                            posname=self.posname,
-                                                            hybe=self.hybe,
-                                                            channel=self.channel,
-                                                            zindex=str(zindex))
+                self.utilities.save_data('Started',
+                                        Dataset=self.dataset,
+                                        Position=self.posname,
+                                        Hybe=self.hybe,
+                                        Channel=self.channel,
+                                        Zindex=str(zindex),
+                                        Type='flag')
             
     def check_projection(self):
         if self.verbose:
