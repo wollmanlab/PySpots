@@ -112,7 +112,7 @@ parameters['registration_threshold']=2 # Max average distance in pixels before e
 parameters['upsamp_factor']=5 # How much to upsample to call subpixel center
 parameters['dbscan_eps']=3 
 parameters['dbscan_min_samples']=20 # How many beads you need
-parameters['max_dist']=200 # Max distance a bead can be to be paired
+parameters['max_dist']=200#200 # Max distance a bead can be to be paired
 parameters['match_threshold']=0.65 # Peak Calling threshold for beads
 parameters['ref_hybe']='hybe1' # Name of Reference Hybe
 parameters['registration_channel']='DeepBlue' # What channel has your fiduciary markers
@@ -138,6 +138,12 @@ parameters['blur_method']='gaussian' # method to smooth image
 parameters['deconvolution_niterations']=10 # How many rounds of deconvolution to perform
 parameters['deconvolution_batches']=10 # how many batches to break up the computation into
 parameters['deconvolution_gpu']=False # do you want to use the gpu
+
+parameters['spot_diameter'] = 3
+parameters['spot_minmass'] = 2
+parameters['spot_separation'] = 1
+        
+        
 """ Segment """
 parameters['nucstain_channel'] = 'DeepBlue' # Which Channel is your nuclear stain in
 parameters['nucstain_acq'] = 'nucstain' # Which acquision is your nuclear signal in
