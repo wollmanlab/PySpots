@@ -45,7 +45,7 @@ if __name__ == '__main__':
         os.mkdir(os.path.join(dataset_daemon_path,'input'))
         os.chmod(os.path.join(dataset_daemon_path,'input'), 0o777)
     pickle.dump(data,open(os.path.join(dataset_daemon_path,'input',fname),'wb'))
-        
+    
     fishdata_path = os.path.join(metadata_path,'fishdata')
     if not os.path.exists(fishdata_path):
         os.mkdir(fishdata_path)

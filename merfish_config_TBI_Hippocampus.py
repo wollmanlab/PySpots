@@ -110,7 +110,7 @@ parameters['utilities_path']='/scratch/utilities/' # Where to save temporary fil
 parameters['fishdata']='fishdata' #Directory Name for Processed Data >Bigstore>Images[Year]>User.Project>Dataset>fishdata
 parameters['verbose']=False # If you want print statements (Mostly for diagnostics)
 parameters['two_dimensional']=False #Work in 2 or 3 dimensions
-parameters['pixel_size'] = 0.083 # size of pixel in um
+parameters['pixel_size'] = 0.123 #1.5 => 0.083 #1=> 0.123# size of pixel in um
 parameters['z_step_size'] = 0.4 # size of step in Z um
 """ Dataset """
 parameters['hotpixel_kernel_size']=3 # Size of window to calculate hot pixel
@@ -125,7 +125,7 @@ parameters['registration_threshold']=2 # Max average distance in pixels before e
 parameters['upsamp_factor']=5 # How much to upsample to call subpixel center
 parameters['dbscan_eps']=3 
 parameters['dbscan_min_samples']=20 # How many beads you need
-parameters['max_dist']=200#200 # Max distance a bead can be to be paired
+parameters['max_dist']=int(15/parameters['pixel_size'])#15 um # Max distance a bead can be to be paired
 parameters['match_threshold']=0.65 # Peak Calling threshold for beads
 parameters['ref_hybe']='hybe1' # Name of Reference Hybe
 parameters['registration_channel']='DeepBlue' # What channel has your fiduciary markers
@@ -144,41 +144,41 @@ parameters['projection_function']='mean' # Which method to use to project (typic
 parameters['dtype_rel_min']=0 # when converting dtypes this amount in percentile will be set to 0
 parameters['dtype_rel_max']=100 # when converting dtypes this amount in percentile will be set to max
 parameters['dtype']='uint16' # dtype to save in
-parameters['background_kernel']=2 # size of kernel for background in pixels (ideally just larger than spots)
-parameters['blur_kernel']=0.5 # amount to blur your image to smooth out noise
+parameters['background_kernel']=(0.2/parameters['pixel_size']) #200 nm size of kernel for background in pixels (ideally just larger than spots)
+parameters['blur_kernel']=(0.05/parameters['pixel_size'])#50nm amount to blur your image to smooth out noise
 parameters['background_method']='gaussian' # method to calculate background
 parameters['blur_method']='gaussian' # method to smooth image
 parameters['deconvolution_niterations']=10 # How many rounds of deconvolution to perform
 parameters['deconvolution_batches']=10 # how many batches to break up the computation into
 parameters['deconvolution_gpu']=False # do you want to use the gpu
 
-parameters['spot_diameter'] = 3
-parameters['spot_minmass'] = 2
-parameters['spot_separation'] = 1
+parameters['spot_diameter'] = (0.25/parameters['pixel_size'])# 250 nm
+parameters['spot_minmass'] = 2 # not based on size?
+parameters['spot_separation'] = (0.1/parameters['pixel_size'])# 100 nm
         
         
 """ Segment """
 parameters['nucstain_channel'] = 'DeepBlue' # Which Channel is your nuclear stain in
 parameters['nucstain_acq'] = 'nucstain' # Which acquision is your nuclear signal in
 parameters['segment_projection_function'] = 'mean' # method for projecting in Z
-parameters['segment_min_size'] = 1000 # min cell size in pixels to keep for 2D
+parameters['segment_min_size'] = (100/parameters['pixel_size'])#100 um2 # min cell size in pixels to keep for 2D
 parameters['segment_overlap_threshold'] = 0.3 # % of overlap to merge cells in Z
-parameters['segment_pixel_thresh'] = 10**3#10**4  # min cell size in pixels to keep for 3D
+parameters['segment_pixel_thresh'] = (100/parameters['pixel_size'])#100 um2 # min cell size in pixels to keep for 3D
 parameters['segment_z_thresh'] = 0#5 # How many Z's a cell has to be in to keep
 parameters['segment_distance_thresh'] = 10 # distance to dialate cell in um
 parameters['segment_model_type']="nuclei" # cellpose model type
 parameters['segment_gpu'] = False # use gpu?
 parameters['segment_batch_size'] = 8 # how many batches to break up calculation
-parameters['segment_diameter'] = 120.0 # size of cell in pixels
+parameters['segment_diameter'] = (10/parameters['pixel_size']) # size of cell in um2
 parameters['segment_channels'] = [0,0] # grey scale for cellpose
 parameters['segment_flow_threshold'] = 1 # cellpose parameters
 parameters['segment_cellprob_threshold'] = 0 # cellpose parameters
 parameters['segment_downsample'] = 0.25 # amount to downsample images
 parameters['segment_two_dimensional'] = True#False # perform in 2D or 3D
 parameters['segment_overwrite'] = False # Overwrite previous segmentation?
-parameters['segment_nuclear_blur'] = 300 # sigma in pixels for background
+parameters['segment_nuclear_blur'] = (25/parameters['pixel_size']) # 25 um2 sigma in pixels for background
 parameters['segment_z_step_size'] = 0.4
-parameters['segment_pixel_size'] = 0.083
+parameters['segment_pixel_size'] = parameters['pixel_size']
 """ Classify """
 parameters['match_thresh'] = -2 # how many mismatched bits to be called a barcode
 parameters['fpr_thresh'] = 0.4 # euclidean distance from barcodes to be called
