@@ -33,6 +33,11 @@ class Utilities_Class(object):
         else:
             File_Name = str(Dataset)+'_'+str(Position)+'_'+str(Hybe)+'_'+str(Channel)+'_'+str(Zindex)+'_'+str(Type)+'.pkl'
             pickle.dump(data,open(os.path.join(self.utilities_path,File_Name),'wb'))
+        try:
+            os.chmod(os.path.join(self.utilities_path,File_Name), 0o777)
+        except:
+            do = 'nothing'
+            # print('unable to set permissions: ',os.path.join(self.utilities_path,File_Name))
         
         
     def load_data(self,
@@ -41,20 +46,32 @@ class Utilities_Class(object):
                   Hybe = 'Hybe',
                   Channel ='Channel',
                   Zindex = 'Zindex',
-                  Type = 'Type'):
+                  Type = 'Type',
+                  filename_only=False):
         try:
             if Type in ['image','stack']:
                 File_Name = str(Dataset)+'_'+str(Position)+'_'+str(Hybe)+'_'+str(Channel)+'_'+str(Zindex)+'_'+str(Type)+'.tif'
-                data = tifffile.imread(os.path.join(self.utilities_path,File_Name))
+                fname = os.path.join(self.utilities_path,File_Name)
+                if filename_only:
+                    data = fname
+                else:
+                    data = tifffile.imread(fname)
             elif Type in ['flag','log']:
                 File_Name = str(Dataset)+'_'+str(Position)+'_'+str(Hybe)+'_'+str(Channel)+'_'+str(Zindex)+'_'+str(Type)+'.csv'
                 fname = os.path.join(self.utilities_path,File_Name)
-                with open(fname,"r") as f:
-                    data = f.read()
-                    f.close()
+                if filename_only:
+                    data = fname
+                else:
+                    with open(fname,"r") as f:
+                        data = f.read()
+                        f.close()
             else:
                 File_Name = str(Dataset)+'_'+str(Position)+'_'+str(Hybe)+'_'+str(Channel)+'_'+str(Zindex)+'_'+str(Type)+'.pkl'
-                data = pickle.load(open(os.path.join(self.utilities_path,File_Name),'rb'))
+                fname = os.path.join(self.utilities_path,File_Name)
+                if filename_only:
+                    data = fname
+                else:
+                    data = pickle.load(open(fname,'rb'))
             return data
         except:
             return None
