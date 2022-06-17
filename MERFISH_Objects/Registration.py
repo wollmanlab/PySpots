@@ -73,6 +73,15 @@ class Registration_Class(object):
         
     def run(self):
         self.check_flags()
+        self.main()
+        
+    def main(self):
+        if not self.completed:
+            if self.parameters['registration_method'] =='image':
+                self.image_registration()
+            else:
+                self.check_beads()
+    
     
     def update_user(self,message):
         """ For User Display"""
@@ -137,11 +146,11 @@ class Registration_Class(object):
                                              Position=self.posname,
                                              Hybe=self.hybe,
                                              Type='flag')
-                else:
-                    if self.parameters['registration_method'] =='image':
-                        self.image_registration()
-                    else:
-                        self.check_beads()
+                # else:
+                #     if self.parameters['registration_method'] =='image':
+                #         self.image_registration()
+                #     else:
+                #         self.check_beads()
             
     def load_image(self,hybe,channel):
         """ Load Image for image based registration"""
@@ -190,7 +199,7 @@ class Registration_Class(object):
         background = gaussian_filter(denoised,self.image_background_kernel)
         image = image.astype(float)-background.astype(float)
         zscore = image-np.median(image)
-        zscore = image/np.std(image)
+        zscore = zscore/np.std(image)
         return zscore
         
     def image_registration(self):
@@ -240,6 +249,8 @@ class Registration_Class(object):
                 
     def check_beads(self):
         beads = self.fishdata.load_data('beads',dataset=self.dataset,posname=self.posname,hybe=self.hybe)
+        if self.parameters['registration_overwrite']:
+            beads = None
         if not isinstance(beads,type(None)):
             self.beads = beads
             if len(self.beads)==0:
@@ -254,7 +265,11 @@ class Registration_Class(object):
         bkg = gaussian_filter(img,self.image_background_kernel)
         img = img-bkg
         img = gaussian_filter(img,self.image_blur_kernel)
-        img[img<0] = 0
+        """ Zscore Image"""
+        temp = np.percentile(img.ravel(),[25,50,75])
+        img = img-temp[1]
+        img = img/(temp[2]-temp[1])
+        img[img<0] = 0 # below median likely not a bead
         return img
     
     def create_hotpixel_kernel(self):
@@ -318,8 +333,26 @@ class Registration_Class(object):
             iterable = tqdm(range(self.stk.shape[2]),desc='Processing Stack')
         else:
             iterable = range(self.stk.shape[2])
+        if self.hybe=='nucstain':
+            """ mask out cells before calling beads """
+            img = self.stk.mean(2)
+            """ Robust Zscore"""
+            temp = np.percentile(img.ravel(),[25,50,75])
+            img = img-temp[1]
+            img = img/(temp[2]-temp[0])
+            """ Binarize"""
+            mask = img>1 # Greater than 75th percentile  # MOVE
+            """ Remove Small Objects (beads) """
+            from skimage.morphology import remove_small_objects
+            mask = remove_small_objects(mask,200) # MOVE
+            """ dialate """
+            """ may have issues if very dense cells """
+            from scipy.ndimage.morphology import binary_dilation
+            mask = binary_dilation(mask,iterations=10) # MOVE
         for i in iterable:
             self.stk[:,:,i] =  self.process_image(self.stk[:,:,i])
+        if self.hybe=='nucstain':
+            self.stk[mask,:] = 0
         # Threshold to prevent False Positive Bead Calls
         # thresh = np.percentile(self.stk.ravel(),99.9)
         # self.stk = self.stk-thresh
@@ -373,12 +406,18 @@ class Registration_Class(object):
         self.load_stack()
         # Find Beads in 2D First
         img = self.stk.mean(2) # Mean is more robust to noise and out of focus light
-        img = img-img.mean()
-        img = img/img.std()
+        """ Zscore Image"""
+        temp = np.percentile(img.ravel(),[25,50,75])
+        img = img-temp[1]
+        img = img/(temp[2]-temp[1])
+        # img[img<0] = 0
         img[img<2] = 2 # must be more than 4 std from mean to be considered bead
         # thresh = np.percentile(img.ravel(),90)
         # img[img<thresh] = thresh
-        self.features = tp.locate(img, diameter=(15,15),separation=20) # Move from hard code
+        self.features = tp.locate(img,
+                                  minmass=100,
+                                  diameter=(15,15),
+                                  separation=20) # Move from hard code
         
         subpixel_beads = []
         if self.subpixel_method == 'template':
