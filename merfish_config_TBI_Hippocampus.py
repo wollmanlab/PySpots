@@ -187,8 +187,8 @@ parameters['segment_ncpu'] = 30
 parameters['match_thresh'] = -2 # how many mismatched bits to be called a barcode
 parameters['fpr_thresh'] = 0.4 # euclidean distance from barcodes to be called
 parameters['classification_overwrite'] = True
-parameters['logistic_columns'] = ['mass', 'size', 'ecc','intensity' 'raw_mass', 'ep', 'cword_distance', 'correct_bits', 'false_positives', 'false_negatives', 'signal', 'noise', 'signal-noise', 'X']
-
+#parameters['logistic_columns'] = ['mass', 'size', 'ecc','intensity' 'raw_mass', 'ep', 'cword_distance', 'correct_bits', 'false_positives', 'false_negatives', 'signal', 'noise', 'signal-noise', 'X']
+parameters['logistic_columns'] = ['raw_mass', 'ep','intensity', 'signal', 'noise', 'signal-noise','X']
 spot_parameters = {}
 spot_parameters['default'] = {'spot_max_distance':3,
                                        'spot_minmass':15,
@@ -207,7 +207,7 @@ spot_parameters['Sham_3_4_2022Jan25'] = {'spot_max_distance':3,
                                        'spot_diameter':5,
                                           'spot_separation':3}
 spot_parameters['TBI-1-1_2021Oct20'] = {'spot_max_distance':3,
-                                       'spot_minmass':35,
+                                       'spot_minmass':15,
                                        'spot_diameter':5,
                                           'spot_separation':3}
 spot_parameters['TBI_3_1_2022Jan15'] = {'spot_max_distance':3,
@@ -218,4 +218,21 @@ spot_parameters['TBI4_1_2022Jan11'] = {'spot_max_distance':3,
                                        'spot_minmass':15,
                                        'spot_diameter':5,
                                           'spot_separation':3}
+
+
+camera_direction_dict = {'default':[-1,-1],
+                        'sham1_3_2022Jan03':[-1,-1],    
+                        'Sham_2_4_2022Jan21':[-1,-1],
+                        'Sham_3_4_2022Jan25':[-1,-1],
+                        'TBI_3_1_2022Jan15':[-1,-1],
+                        'TBI4_1_2022Jan11':[-1,-1]}
+xy_flip_dict = {'default':True,
+                'sham1_3_2022Jan03':True,
+                'Sham_2_4_2022Jan21':False,
+                'Sham_3_4_2022Jan25':False,
+                'TBI_3_1_2022Jan15':False,
+                'TBI4_1_2022Jan11':True}
+
+parameters['camera_direction_dict'] = camera_direction_dict
+parameters['xy_flip_dict'] = xy_flip_dict
 parameters['spot_parameters'] = spot_parameters

@@ -21,7 +21,6 @@ from fish_helpers import colorize_segmented_image
 from skimage import filters
 from skimage import morphology
 from scipy import ndimage
-from analysis_scripts.classify import spotcat 
 from skimage.measure import regionprops
 from scipy import interpolate
 from PIL import Image
@@ -36,6 +35,18 @@ from metadata import Metadata
 import os
 from fish_helpers import *
 def process_image(data,parameters):
+    """External Function for Segmentation Class to Multiprocess Image Processing
+
+    Args:
+        data (dict): {'img_idx':(str) zindex for image, 
+                        'fname':(str) path to raw image,
+                        'translation_x':(float) Rigid X Translation,
+                        'translation_y':(float) Rigid Y Translation}
+        parameters (dict): dict from config file
+
+    Returns:
+        _type_: _description_
+    """
     img_idx = data['img_idx']
     fname = data['fname']
     image = cv2.imread(os.path.join(fname),-1).astype(float)
@@ -56,6 +67,15 @@ class Segment_Class(object):
                  posname,
                  cword_config,
                  verbose=False):
+        """Class to Segment Nuclei and Cytoplasm Images
+
+        Args:
+            metadata_path (str): path to raw data
+            dataset (str): name of dataset
+            posname (str): name of position
+            cword_config (str): name of config module
+            verbose (bool, optional): _description_. Defaults to False.
+        """
         self.metadata_path = metadata_path
         self.dataset = dataset
         self.posname = posname

@@ -20,13 +20,22 @@ class Dataset_Class(object):
                  metadata_path,
                  dataset,
                  cword_config,
-                 wait = 300,
                  verbose=True):
+        """Class to Process Dataset
+        Includes Finding Hot Pixels
+        Includes Filtering out False Transcripts
+        Includes Final Counts matrix 
+
+        Args:
+            metadata_path (str): path to raw data
+            dataset (str): name of dataset
+            cword_config (str): name of config module
+            verbose (bool, optional): _description_. Defaults to True.
+        """
         self.metadata_path = metadata_path
         self.dataset = dataset
         self.cword_config = cword_config
         self.verbose = verbose
-        self.wait = wait
         self.merfish_config = importlib.import_module(self.cword_config)
         self.parameters = self.merfish_config.parameters
         self.daemon_path = self.parameters['daemon_path']
@@ -304,16 +313,47 @@ class Dataset_Class(object):
         """ Update to anndata object"""
         if self.verbose:
             self.update_user('Generating Counts')
+        import torch
         cells = self.transcripts.cell_id.unique()
-        counts = np.zeros([len(cells),len(self.merfish_config.aids)],dtype=int)
+        cell_index = {cell:i for i,cell in enumerate(cells)}
+        genes = self.merfish_config.aids
+        genes_index = {gene:i for i,gene in enumerate(genes)}
+
+        counts = torch.zeros([len(cells),len(genes)],dtype=int)
         if self.verbose:
-            iterable = tqdm(enumerate(cells),total=len(cells),desc='Generating Counts')
+            iterable = tqdm(enumerate(genes),total=len(genes),desc='Generating Counts')
         else:
-            iterable = enumerate(cells)
-        for i,cell in iterable:
-            for cword_idx,cc in Counter(self.transcripts[self.transcripts.cell_id==cell].cword_idx).items():
-                counts[i,cword_idx] = cc
-        self.counts = pd.DataFrame(counts,columns=self.merfish_config.aids,index=cells)
+            iterable = enumerate(genes)
+        for i,gene in iterable:
+            mask = self.transcripts.gene==gene
+            for cell,cc in Counter(self.transcripts[mask].cell_id).items():
+                counts[cell_index[cell],genes_index[gene]] = cc
+        self.counts = pd.DataFrame(counts.numpy(),columns=self.merfish_config.aids,index=cells)
+        self.cell_metadata.index = np.array(self.cell_metadata['cell_id'])
+        common_cells = set(list(self.counts.index)).intersection(list(self.cell_metadata.index))
+        self.counts = self.counts.loc[common_cells]
+        self.cell_metadata = self.cell_metadata.loc[common_cells]
+        """ Add Stage Coordinates"""
+        pos_locations = {pos:self.metadata.image_table[self.metadata.image_table.Position==pos].XY.iloc[0] for pos in self.posnames}
+        self.cell_metadata['posname_stage_x'] = [pos_locations[pos][0] for pos in self.cell_metadata.posname]
+        self.cell_metadata['posname_stage_y'] = [pos_locations[pos][1] for pos in self.cell_metadata.posname]
+        pixel_size = self.parameters['pixel_size']
+        if self.dataset in self.parameters['camera_direction_dict'].keys():
+            self.parameters['camera_direction'] = self.parameters['camera_direction_dict'][self.dataset]
+        else:
+            self.parameters['camera_direction'] = self.parameters['camera_direction_dict']['default']
+        if self.dataset in self.parameters['xy_flip_dict'].keys():
+            self.parameters['xy_flip'] = self.parameters['xy_flip_dict'][self.dataset]
+        else:
+            self.parameters['xy_flip'] = self.parameters['xy_flip_dict']['default']
+        if self.parameters['xy_flip']:
+            stage_x = np.array(self.cell_metadata['posname_stage_x']) + self.parameters['camera_direction'][0]*pixel_size*np.array(self.cell_metadata['x_pixel'])
+            stage_y = np.array(self.cell_metadata['posname_stage_y']) + self.parameters['camera_direction'][1]*pixel_size*np.array(self.cell_metadata['y_pixel'])
+        else:
+            stage_x = np.array(self.cell_metadata['posname_stage_x']) + self.parameters['camera_direction'][0]*pixel_size*np.array(self.cell_metadata['y_pixel'])
+            stage_y = np.array(self.cell_metadata['posname_stage_y']) + self.parameters['camera_direction'][1]*pixel_size*np.array(self.cell_metadata['x_pixel'])
+        self.cell_metadata['stage_x'] = stage_x
+        self.cell_metadata['stage_y'] = stage_y
             
     def save_data(self):
         """ Save Data """

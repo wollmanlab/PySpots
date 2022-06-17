@@ -33,6 +33,16 @@ class Registration_Class(object):
                  hybe,
                  cword_config,
                  verbose=False):
+        """ Class to Detect Fiduciary Markers and Calculate Rigid Transformation
+
+        Args:
+            metadata_path (str): Path to Raw Data
+            dataset (str): Name of Dataset
+            posname (str): Name of Position
+            hybe (str): Name of Hybe
+            cword_config (str): Name of Config Module
+            verbose (bool, optional): _description_. Defaults to False.
+        """
         self.metadata_path = metadata_path
         self.dataset = dataset
         self.posname = posname

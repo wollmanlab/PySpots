@@ -27,6 +27,18 @@ class Image_Class(object):
                  zindex,
                  cword_config,
                  verbose=False):
+        """Class to Process Raw Images
+
+        Args:
+            metadata_path (str):  Path to Raw Data
+            dataset (str): Name of Dataset
+            posname (str): Name of Position
+            hybe (str): Name of Hybe
+            channel (str): Name of Channel
+            zindex (str): Name of Zindex
+            cword_config (str): Name of Config Module
+            verbose (bool, optional): _description_. Defaults to False.
+        """
         self.metadata_path = metadata_path
         self.dataset = dataset
         self.posname = posname

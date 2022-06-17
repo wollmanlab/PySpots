@@ -29,6 +29,16 @@ class Classify_Class(object):
                  zindex,
                  cword_config,
                  verbose=False):
+        """ Class to Detect/Process smFISH Spots to MERFISH Transcripts
+
+        Args:
+            metadata_path (str): Path to Raw Dataset
+            dataset (str): Name of Dataset
+            posname (str): Name of Position
+            zindex (str): Name of Zindex
+            cword_config (str): Name of Config Module
+            verbose (bool, optional): _description_. Defaults to False.
+        """
         self.metadata_path = metadata_path
         self.dataset = dataset
         self.posname = posname
@@ -59,6 +69,8 @@ class Classify_Class(object):
             self.parameters['spot_separation'] = self.parameters['spot_parameters']['default']['spot_separation']
 
     def run(self):
+        """ Main Executable For Asyncronous Data Pipeline 
+        """
         if self.parameters['overwrite_spots']:
             self.main()
         else:
@@ -89,11 +101,14 @@ class Classify_Class(object):
                 self.collapse_spots()
             if self.passed:
                 self.assign_cells()
-                # self.generate_counts()
                 self.save_data()
                 
     def update_user(self,message):
-        """ For User Display"""
+        """ For User Display
+
+        Args:
+            message (str): will be sent to user
+        """
         i = [i for i in tqdm([],desc=str(datetime.now().strftime("%H:%M:%S"))+' '+str(message))]
         
     def load_data(self):
@@ -118,7 +133,14 @@ class Classify_Class(object):
             #                         Type='flag')
         
     def load_spots(self,hybe,channel):
-        """ Load Spots Previously Detected """
+        """Load Spots Previously Detected
+
+        Args:
+            hybe (str): Name of Hybe
+            channel (str): Name of Channel
+        Returns:
+            pd.DataFrame: dataframe of detected smFISH Spots
+        """
         spots = self.fishdata.load_data('spotcalls',
                                         dataset=self.dataset,
                                         posname=self.posname,
@@ -182,6 +204,10 @@ class Classify_Class(object):
                                    self.parameters['spot_diameter'],
                                    minmass=self.parameters['spot_minmass'],
                                    separation=self.parameters['spot_separation'])
+                spots['spot_diameter'] = self.parameters['spot_diameter']
+                spots['spot_minmass'] = self.parameters['spot_minmass']
+                spots['spot_separation'] = self.parameters['spot_separation']
+                spots['spot_max_distance'] = self.parameters['spot_max_distance']
                 self.fishdata.add_and_save_data(spots,
                                                 'spotcalls',
                                                 dataset=self.dataset,
@@ -376,49 +402,6 @@ class Classify_Class(object):
         transcripts['cword_idx'] = [int(round(float(i))) for i in transcripts['cword_idx']]
         self.transcripts = transcripts 
         
-    def train_logistic(self):
-        """ Train Logistic Regressor to find False Positives"""
-        if self.verbose:
-            self.update_user('Training Logistic')
-        converter = {i:'True' for i in self.transcripts['cword_idx'].unique()}
-        blank_indices = np.array([i for i,gene in enumerate(self.merfish_config.aids) if 'lank' in gene])
-        for i in blank_indices:
-            converter[i] = 'False'
-        self.transcripts['X'] = [converter[i] for i in self.transcripts['cword_idx']]
-
-        from sklearn.model_selection import train_test_split
-        columns = self.parameters['logistic_columns']
-        data = self.transcripts[columns]
-        data_true = data.loc[data[data['X']=='True'].index]
-        data_false = data.loc[data[data['X']=='False'].index]
-        """ downsample to same size """
-        s = np.min([data_true.shape[0],data_false.shape[0]])
-        data_true_down = data_true.loc[np.random.choice(data_true.index,s,replace=False)]
-        data_false_down = data_false.loc[np.random.choice(data_false.index,s,replace=False)]
-        data_down = pd.concat([data_true_down,data_false_down])
-        X_train, X_test, y_train, y_test = train_test_split(data_down.drop('X',axis=1),data_down['X'], test_size=0.30,random_state=101)
-
-        from sklearn.linear_model import LogisticRegression
-        self.logmodel = LogisticRegression(max_iter=1000)
-        self.logmodel.fit(X_train,y_train)
-        predictions = self.logmodel.predict(X_test)
-
-        from sklearn.metrics import classification_report
-        print(classification_report(y_test,predictions))
-        self.save_models() 
-        
-    def apply_logistic(self):
-        """ Apply Logistic Regressor to remove False Positives"""
-        if self.verbose:
-            self.update_user('Applying Logistic')
-        columns = self.parameters['logistic_columns']
-        data = self.transcripts[columns]
-        self.load_models() 
-        predictions = self.logmodel.predict(data.drop('X',axis=1))
-        self.transcripts['predicted_X'] = predictions
-        self.transcripts = self.transcripts[self.transcripts['predicted_X']=='True']
-        self.transcripts['gene'] = np.array(self.merfish_config.aids)[self.transcripts.cword_idx]
-        
     def load_segmentation(self):
         """ Load Segmentation for Transcript assignment"""
         if self.verbose:
@@ -452,23 +435,6 @@ class Classify_Class(object):
         self.transcripts['posname'] = self.posname
         self.transcripts['cell_label'] = cell_labels
         self.transcripts['nuclei_label'] = nuclei_labels
-        
-    # def generate_counts(self):
-    #     """ Generate Counts Table """
-    #     """ Update to anndata object"""
-    #     if self.verbose:
-    #         self.update_user('Generating Counts')
-    #     self.assignCells()
-    #     cells = self.transcripts.cell_label.unique()
-    #     counts = np.zeros([len(cells),len(self.merfish_config.aids)],dtype=int)
-    #     if self.verbose:
-    #         iterable = tqdm(enumerate(cells),total=len(cells),desc='Generating Counts')
-    #     else:
-    #         iterable = enumerate(cells)
-    #     for i,cell in iterable:
-    #         for cword_idx,cc in Counter(self.transcripts[self.transcripts.cell_label==cell].cword_idx).items():
-    #             counts[i,cword_idx] = cc
-    #     self.counts = pd.DataFrame(counts,columns=self.merfish_config.aids,index=cells)
             
     def save_data(self):
         """ Save Data """
