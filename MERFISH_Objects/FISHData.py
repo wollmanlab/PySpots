@@ -107,7 +107,11 @@ class FISHData(object):
             data.write(filename=fname)
         else:
             np.save(fname,data)
-        return True
+        try:
+            os.chmod(fname, 0o777)
+            return True
+        except:
+            return True
 
 
 
