@@ -174,6 +174,10 @@ norm_blank_codeword_vectors = normalize(blank_codeword_vectors)
 #norm_all_codeword_vectors = normalize(all_codeword_vectors)
 
 parameters = {}
+
+parameters['pixel_size'] = 0.326#0.103 #0.490
+parameters['diameter'] = 10 # um
+
 parameters['dtype_rel_min']=0
 parameters['dtype_rel_max']=100
 parameters['dtype']='uint16'
@@ -205,42 +209,42 @@ parameters['max_dist']=200
 parameters['match_threshold']=0.65
 parameters['ref_hybe']='hybe1'
 parameters['hybedata']='hybedata'
-parameters['fishdata']='fishdata'
+parameters['fishdata']='fishdata_2022Mar23'
 parameters['registration_channel']='DeepBlue'
 parameters['daemon_path']='/scratch/daemon/'
 parameters['utilities_path']='/scratch/utilities/'
 parameters['floor']=True
 parameters['2D']=True
-parameters['nucstain_acq'] = 'infer'
-parameters['total_channel'] = 'FarRed'
 parameters['overwrite'] = True
 parameters['segment_projection_function'] = 'mean'
-parameters['segment_min_size'] = 1000
+parameters['segment_min_size'] = (3.14*parameters['diameter']**2)/parameters['pixel_size'] #300 um^2 to pixels
 parameters['segment_overlap_threshold'] = 0.3
-parameters['segment_pixel_thresh'] = 10**3#10**4
+parameters['segment_pixel_thresh'] = (3.14*parameters['diameter']**2)/parameters['pixel_size'] #300 um^2 to pixels
 parameters['segment_z_thresh'] = 0#5
-parameters['segment_distance_thresh'] = 10
+parameters['segment_distance_thresh'] = 5/parameters['pixel_size'] #5 um to pixels
 parameters['segment_model_type']="nuclei"
 parameters['segment_gpu'] = True
 parameters['segment_batch_size'] = 8
-parameters['segment_diameter'] = 10.0#90.0
+parameters['segment_diameter'] = parameters['diameter']/parameters['pixel_size']# 10.0#90.0
 parameters['segment_channels'] = [0,0]
 parameters['segment_flow_threshold'] = 1
 parameters['segment_cellprob_threshold'] = 0
-parameters['segment_downsample'] = 0.25
+parameters['segment_downsample'] = 0.5
 parameters['segment_two_dimensional'] = True#False
 parameters['segment_overwrite'] = False
 parameters['segment_singular_zindex'] = -1
-parameters['segment_nuclear_blur'] = 300
-parameters['segment_pixel_size'] = 0.326#0.103
+parameters['segment_nuclear_blur'] = 100/parameters['pixel_size'] # 100 um
+parameters['segment_pixel_size'] = parameters['pixel_size']#0.326#0.103
 parameters['segment_z_step_size'] = 0.4
-
+parameters['segment_overwrite'] = False
 parameters['camera_direction'] = [-1,-1]
-parameters['total_acq'] = 'infer'
         
 parameters['match_thresh'] = -2
 parameters['fpr_thresh'] = 0.2
 parameters['nucstain_channel'] = 'DeepBlue'
+parameters['nucstain_acq'] = 'infer'
+parameters['total_channel'] = 'FarRed'
+parameters['total_acq'] = 'none'
 
 hotpixel_loc = pickle.load(open('/scratch/hotpixels.pkl','rb'))
 # Not certain about hotpixel x vs y
