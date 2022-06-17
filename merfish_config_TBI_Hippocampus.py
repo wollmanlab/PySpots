@@ -52,6 +52,7 @@ bitmap = [('RS0095_cy5', 'hybe1', 'FarRed'),
             ('RSN4287.0_atto565', 'hybe16', 'FarRed'),
             ('RSN1252.0_atto565', 'hybe17', 'FarRed'),
             ('RSN9535.0_atto565', 'hybe18', 'FarRed')]
+
 nbits = len(bitmap)
 
 """ For Loading the Codebook"""
@@ -110,7 +111,7 @@ parameters['utilities_path']='/scratch/utilities/' # Where to save temporary fil
 parameters['fishdata']='fishdata' #Directory Name for Processed Data >Bigstore>Images[Year]>User.Project>Dataset>fishdata
 parameters['verbose']=False # If you want print statements (Mostly for diagnostics)
 parameters['two_dimensional']=False #Work in 2 or 3 dimensions
-parameters['pixel_size'] = 0.123 #1.5 => 0.083 #1=> 0.123# size of pixel in um
+parameters['pixel_size'] = 0.083 #1.5 => 0.083 #1=> 0.123# size of pixel in um
 parameters['z_step_size'] = 0.4 # size of step in Z um
 """ Dataset """
 parameters['hotpixel_kernel_size']=3 # Size of window to calculate hot pixel
@@ -133,6 +134,7 @@ parameters['registration_method'] = 'beads' # What method of registration to use
 parameters['registration_image_blur_kernel'] = 2 # What size kernel to blur image with
 parameters['registration_image_background_kernel'] = 10 # What size kernel to calculte background
 parameters['subpixel_method'] = 'max'
+parameters['registration_overwrite'] = False
 """ Stack """
 
 """ Image """
@@ -148,15 +150,15 @@ parameters['background_kernel']=(0.2/parameters['pixel_size']) #200 nm size of k
 parameters['blur_kernel']=(0.05/parameters['pixel_size'])#50nm amount to blur your image to smooth out noise
 parameters['background_method']='gaussian' # method to calculate background
 parameters['blur_method']='gaussian' # method to smooth image
-parameters['deconvolution_niterations']=10 # How many rounds of deconvolution to perform
+parameters['deconvolution_niterations']=0 # How many rounds of deconvolution to perform
 parameters['deconvolution_batches']=10 # how many batches to break up the computation into
 parameters['deconvolution_gpu']=False # do you want to use the gpu
-
-parameters['spot_diameter'] = (0.25/parameters['pixel_size'])# 250 nm
-parameters['spot_minmass'] = 2 # not based on size?
-parameters['spot_separation'] = (0.1/parameters['pixel_size'])# 100 nm
-        
-        
+parameters['gain'] = 10 # gain for saving Images to use more dynamic range 
+parameters['spot_diameter'] = 5 # 250 nm
+parameters['spot_minmass'] = 15#9 # not based on size?
+parameters['spot_separation'] = 3 # 100 nm
+parameters['image_call_spots'] = False
+parameters['image_overwrite'] = True
 """ Segment """
 parameters['nucstain_channel'] = 'DeepBlue' # Which Channel is your nuclear stain in
 parameters['nucstain_acq'] = 'nucstain' # Which acquision is your nuclear signal in
@@ -167,7 +169,7 @@ parameters['segment_pixel_thresh'] = (100/parameters['pixel_size'])#100 um2 # mi
 parameters['segment_z_thresh'] = 0#5 # How many Z's a cell has to be in to keep
 parameters['segment_distance_thresh'] = 10 # distance to dialate cell in um
 parameters['segment_model_type']="nuclei" # cellpose model type
-parameters['segment_gpu'] = False # use gpu?
+parameters['segment_gpu'] = True # use gpu?
 parameters['segment_batch_size'] = 8 # how many batches to break up calculation
 parameters['segment_diameter'] = (10/parameters['pixel_size']) # size of cell in um2
 parameters['segment_channels'] = [0,0] # grey scale for cellpose
@@ -179,6 +181,41 @@ parameters['segment_overwrite'] = False # Overwrite previous segmentation?
 parameters['segment_nuclear_blur'] = (25/parameters['pixel_size']) # 25 um2 sigma in pixels for background
 parameters['segment_z_step_size'] = 0.4
 parameters['segment_pixel_size'] = parameters['pixel_size']
+parameters['segment_overwrite'] = True
+parameters['segment_ncpu'] = 30
 """ Classify """
 parameters['match_thresh'] = -2 # how many mismatched bits to be called a barcode
 parameters['fpr_thresh'] = 0.4 # euclidean distance from barcodes to be called
+parameters['classification_overwrite'] = True
+parameters['logistic_columns'] = ['mass', 'size', 'ecc','intensity' 'raw_mass', 'ep', 'cword_distance', 'correct_bits', 'false_positives', 'false_negatives', 'signal', 'noise', 'signal-noise', 'X']
+
+spot_parameters = {}
+spot_parameters['default'] = {'spot_max_distance':3,
+                                       'spot_minmass':15,
+                                       'spot_diameter':5,
+                                          'spot_separation':3}
+spot_parameters['sham1_3_2022Jan03'] = {'spot_max_distance':3,
+                                       'spot_minmass':12,
+                                       'spot_diameter':5,
+                                          'spot_separation':3}
+spot_parameters['Sham_2_4_2022Jan21'] = {'spot_max_distance':3,
+                                       'spot_minmass':17,
+                                       'spot_diameter':5,
+                                          'spot_separation':3}
+spot_parameters['Sham_3_4_2022Jan25'] = {'spot_max_distance':3,
+                                       'spot_minmass':15,
+                                       'spot_diameter':5,
+                                          'spot_separation':3}
+spot_parameters['TBI-1-1_2021Oct20'] = {'spot_max_distance':3,
+                                       'spot_minmass':35,
+                                       'spot_diameter':5,
+                                          'spot_separation':3}
+spot_parameters['TBI_3_1_2022Jan15'] = {'spot_max_distance':3,
+                                       'spot_minmass':19,
+                                       'spot_diameter':5,
+                                          'spot_separation':3}
+spot_parameters['TBI4_1_2022Jan11'] = {'spot_max_distance':3,
+                                       'spot_minmass':15,
+                                       'spot_diameter':5,
+                                          'spot_separation':3}
+parameters['spot_parameters'] = spot_parameters
