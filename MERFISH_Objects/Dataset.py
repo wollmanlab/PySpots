@@ -56,6 +56,9 @@ class Dataset_Class(object):
         self.passed = True
         
     def run(self):
+        self.main()
+        
+    def main(self):
         self.check_imaging()
         self.check_hot_pixel()
         self.check_flags()
@@ -242,7 +245,7 @@ class Dataset_Class(object):
         self.transcripts['X'] = [converter[i] for i in self.transcripts['cword_idx']]
 
         from sklearn.model_selection import train_test_split
-        columns = ['mass', 'size', 'ecc', 'signal', 'raw_mass', 'ep', 'cword_distance','X']
+        columns = self.parameters['logistic_columns']
         data = self.transcripts[columns]
         data_true = data.loc[data[data['X']=='True'].index]
         data_false = data.loc[data[data['X']=='False'].index]
@@ -252,11 +255,14 @@ class Dataset_Class(object):
         data_false_down = data_false.loc[np.random.choice(data_false.index,s,replace=False)]
         data_down = pd.concat([data_true_down,data_false_down])
         X_train, X_test, y_train, y_test = train_test_split(data_down.drop('X',axis=1),data_down['X'], test_size=0.30,random_state=101)
-
+        from sklearn import preprocessing
+        self.scaler = preprocessing.StandardScaler().fit(X_train)
+        X_train_scaled = self.scaler.transform(X_train)
+        X_test_scaled = self.scaler.transform(X_test)
         from sklearn.linear_model import LogisticRegression
         self.logmodel = LogisticRegression(max_iter=1000)
-        self.logmodel.fit(X_train,y_train)
-        predictions = self.logmodel.predict(X_test)
+        self.logmodel.fit(X_train_scaled,y_train)
+        predictions = self.logmodel.predict(X_test_scaled)
 
         from sklearn.metrics import classification_report
         print(classification_report(y_test,predictions))
@@ -266,15 +272,31 @@ class Dataset_Class(object):
         """ Apply Logistic Regressor to remove False Positives"""
         if self.verbose:
             self.update_user('Applying Logistic')
-        columns = ['mass', 'size', 'ecc', 'signal', 'raw_mass', 'ep', 'cword_distance','X']
+        columns = self.parameters['logistic_columns']
         data = self.transcripts[columns]
         self.load_models() 
-        predictions = self.logmodel.predict(data.drop('X',axis=1))
-        # probabilities = self.logmodel.predict_proba(data.drop('X',axis=1))
-        # self.transcripts['probabilities'] = probabilities
+        X = self.scaler.transform(data.drop('X',axis=1))
+        predictions = self.logmodel.predict(X)
+        probabilities = self.logmodel.predict_proba(X)[:,1] # make sure it is always this orientation
+        self.transcripts['probabilities'] = probabilities
         self.transcripts['predicted_X'] = predictions
         """ Instead filter by probability to 5% FPR """
-        self.transcripts = self.transcripts[self.transcripts['predicted_X']=='True']
+        column = 'probabilities'
+        c = self.transcripts[column]
+        vmin,mid,vmax = np.percentile(c,[1,50,99])
+        threshes = np.linspace(vmin,vmax,100)
+        X = self.transcripts.X
+        for thresh in threshes:
+            mask = c>thresh
+            if np.sum(mask)==0:
+                fpr = -1
+            else:
+                fpr = 10*Counter(X[mask])['False']/X[mask].shape[0]
+            if fpr<0.05:
+                break
+        self.transcripts['logistic_thresh'] = thresh
+        self.transcripts = self.transcripts[mask]
+        # self.transcripts = self.transcripts[self.transcripts['predicted_X']=='True']
         self.transcripts['gene'] = np.array(self.merfish_config.aids)[self.transcripts.cword_idx]
         
     def generate_counts(self):
@@ -324,3 +346,56 @@ class Dataset_Class(object):
         self.apply_logistic()
         self.generate_counts()
         self.save_data()
+        
+    def calculate_zscore(self):
+        for bit in range(len(self.bitmap)):
+            readout,hybe,channel = self.bitmap[bit]
+            zindex='all' #MOVE
+            sample = 500 #MOVE
+
+            # """ Check if it has already been created """
+            # fname = self.utilities.load_data(Dataset=self.dataset,
+            #                                  Hybe=hybe,
+            #                                  Channel=channel,
+            #                                  Zindex=zindex,
+            #                                  Type='ZScore',
+            #                                  filename_only=True)
+            # if os.path.exists(fname):
+            #     if self.verbose:
+            #         self.update_user('bit'+str(bit)+' Zscore already exists')
+            #         self.update_user(fname)
+            #     """ Already Exists """
+            #     continue
+            image_fnames = np.array([i for i in os.listdir(self.fishdata.base_path) if 'image' in i])
+            zindexes = np.unique([int(i.split('_')[-2]) for i in image_fnames])
+            if zindex!='all':
+                image_fnames = np.array([i for i in image_fnames if i.split('_')[-2]==str(zindex)])
+            if channel!='all':
+                image_fnames = np.array([i for i in image_fnames if i.split('_')[-3]==channel])
+            if hybe!='all':
+                image_fnames = np.array([i for i in image_fnames if i.split('_')[-4]==hybe])
+            if image_fnames.shape[0]>sample:
+                image_fnames = np.random.choice(image_fnames,sample,replace=False)
+            else:
+                if self.verbose:
+                    self.update_user('bit'+str(bit))
+                    self.update_user('Not Enough Images for ZScore Calculation')
+                break
+            out = []
+            if self.verbose:
+                iterable = tqdm(image_fnames,desc='Calculating ZScore Bit'+str(bit))
+            else:
+                iterable = image_fnames
+            # UPDATE TO MULTIPROCESSING
+            for i in iterable:
+                f = os.path.join(self.fishdata.base_path,i)
+                img = cv2.imread(f,-1)
+                out.append(torch.tensor(img.astype(float)))
+            out = torch.dstack(out)
+            # If dim = None It will ravel and do 1D not 2D 
+            # Add as a parameter? 
+            out = torch.quantile(out,torch.tensor(np.array([0.25,0.5,0.75]).astype(float)),dim=2)
+            """ Potential issues if STD is 0 """
+            """ Maybe add a blur? """
+            """ Save to Utilities """
+            self.utilities.save_data(out,Dataset=self.dataset,Hybe=hybe,Channel=channel,Zindex=zindex,Type='ZScore')
