@@ -23,6 +23,7 @@ from skimage import morphology
 from scipy import ndimage
 from analysis_scripts.classify import spotcat 
 from skimage.measure import regionprops
+from scipy import interpolate
 from PIL import Image
 import torch
 from scipy.ndimage import median_filter,gaussian_filter
@@ -34,7 +35,20 @@ from MERFISH_Objects.Utilities import *
 from metadata import Metadata
 import os
 from fish_helpers import *
-
+def process_image(data,parameters):
+    img_idx = data['img_idx']
+    fname = data['fname']
+    image = cv2.imread(os.path.join(fname),-1).astype(float)
+    image = image-gaussian_filter(image,parameters['segment_nuclear_blur'])
+    image[image<0] = 0
+    if not parameters['segment_two_dimensional']:
+        i2 = interpolate.interp2d(np.array(range(image.shape[1]))+data['translation_x'], 
+                                  np.array(range(image.shape[0]))+data['translation_y'], 
+                                  image,fill_value=0)
+        image = i2(range(image.shape[1]), range(image.shape[0]))
+    data['image'] = image
+    return data  
+        
 class Segment_Class(object):
     def __init__(self,
                  metadata_path,
@@ -88,15 +102,25 @@ class Segment_Class(object):
         self.cellpose_inputs = cellpose_inputs
         self.completed = False
         
+    def update_user(self,message):
+        """ For User Display"""
+        i = [i for i in tqdm([],desc=str(datetime.now().strftime("%H:%M:%S"))+' '+str(message))] 
+        
     def run(self): 
         self.check_flags()
+        self.main()
+        
+    def main(self):
         self.find_nucstain()
         self.check_projection()
         self.check_cell_metadata()
         if self.overwrite:
             self.completed = False
         if not self.completed:
-            self.generate_stk()
+            if self.parameters['segment_ncpu']>1:
+                self.generate_stk_fast()
+            else:
+                self.generate_stk()
             self.initalize_cellpose()
             self.segment()
             if not self.two_dimensional:
@@ -167,7 +191,7 @@ class Segment_Class(object):
         elif self.projection_zend>self.len_z:
             print('zend of ',self.projection_zend,' is larger than stk range of', self.len_z)
             raise(ValueError('Projection Error'))
-        elif zend<zstart:
+        elif self.projection_zend<self.projection_zstart:
             print('zstart of ',self.projection_zstart,' is larger than zend of', self.projection_zend)
             raise(ValueError('Projection Error'))
         self.zindexes = np.array(range(self.projection_zstart,self.projection_zend,self.projection_zskip))
@@ -232,6 +256,11 @@ class Segment_Class(object):
     def process_image(self,image):
         image = image-gaussian_filter(image,self.nuclear_blur)
         image[image<0] = 0
+        if not self.parameters['segment_two_dimensional']:
+            i2 = interpolate.interp2d(np.array(range(image.shape[1]))+self.translation_x, 
+                                  np.array(range(image.shape[0]))+self.translation_y, 
+                                  image,fill_value=0)
+            image = i2(range(image.shape[1]), range(image.shape[0]))
         return image
     
     def process_stk(self,stk):
@@ -242,19 +271,92 @@ class Segment_Class(object):
         stk = stk.astype(float)
         bstk = np.zeros_like(stk)
         for i in iterable:
-            img = stk[:,:,i]
-            bstk[:,:,i] = gaussian_filter(img,self.nuclear_blur)
+            image = stk[:,:,i]
+            i2 = interpolate.interp2d(np.array(range(image.shape[1]))+self.translation_x, 
+                                  np.array(range(image.shape[0]))+self.translation_y, 
+                                  image,fill_value=0)
+            image = i2(range(image.shape[1]), range(image.shape[0]))
+            bstk[:,:,i] = gaussian_filter(image,self.nuclear_blur)
         bsstk = stk-bstk
         bsstk[bsstk<0] = 0
         return np.log10(bsstk.mean(axis=2)+1)
     
+    def generate_stk_fast(self):
+        """ Load Transformations """
+        if self.verbose:
+            self.update_user('Loading Transformation')
+        self.translation = self.fishdata.load_data('tforms',
+                                                   dataset=self.dataset,
+                                                   posname=self.posname,
+                                                   hybe='nucstain')
+        if isinstance(self.translation,type(None)):
+            """ Not clear what to do here"""
+            self.translation_x = 0
+            self.translation_y = 0
+            self.translation_z = 0#int(round(self.translation['z']))
+        else:
+            self.translation_x = self.translation['x']
+            self.translation_y = self.translation['y']
+            self.translation_z = 0#int(round(self.translation['z']))
+        stk = ''
+        Input = []
+        translation_x = self.translation_x
+        translation_y = self.translation_y
+        for img_idx,fname in enumerate(self.pos_metadata.filename):
+            data = {'img_idx':img_idx,'fname':fname,'translation_x':translation_x,'translation_y':translation_y}
+            Input.append(data)  
+        pfunc = partial(process_image,parameters=self.parameters)
+        pool = multiprocessing.Pool(self.parameters['segment_ncpu'])
+        sys.stdout.flush()
+        results = pool.imap(pfunc, Input)
+        if self.verbose:
+            iterable = tqdm(results,total=len(Input),desc='Generating Nuclear Stack')
+        else:
+            iterable = results
+        for data in iterable:
+            img = data['image']
+            img_idx = data['img_idx']
+            if isinstance(stk,str):
+                self.img_shape = img.shape
+                stk = np.empty([self.img_shape[0],self.img_shape[1],len(self.pos_metadata)])
+            stk[:,:,img_idx]=img
+        pool.close()
+        sys.stdout.flush()
+        if self.two_dimensional:
+            image = self.project_image(stk)
+            i2 = interpolate.interp2d(np.array(range(image.shape[1]))+self.translation_x, 
+                                  np.array(range(image.shape[0]))+self.translation_y, 
+                                  image,fill_value=0)
+            image = i2(range(image.shape[1]), range(image.shape[0]))
+            self.nuclear_stack = image
+            self.nuclear_images = [self.nuclear_stack]
+        else:
+            self.nuclear_stack = self.project_stk(stk)
+            self.nuclear_images = self.stack_to_images(self.nuclear_stack)
+            
     def generate_stk(self):
+        """ Load Transformations """
+        if self.verbose:
+            self.update_user('Loading Transformation')
+        self.translation = self.fishdata.load_data('tforms',
+                                                   dataset=self.dataset,
+                                                   posname=self.posname,
+                                                   hybe='nucstain')
+        if isinstance(self.translation,type(None)):
+            """ Not clear what to do here"""
+            self.translation_x = 0
+            self.translation_y = 0
+            self.translation_z = 0#int(round(self.translation['z']))
+        else:
+            self.translation_x = self.translation['x']
+            self.translation_y = self.translation['y']
+            self.translation_z = 0#int(round(self.translation['z']))
         stk = ''
         if self.verbose:
             iterable = tqdm(enumerate(self.pos_metadata.filename),total=len(self.pos_metadata),desc='Generating Nuclear Stack')
         else:
             iterable = enumerate(self.pos_metadata.filename)
-        """ ensure these are in the right order"""
+        """ ensure these are in the right order"""         
         for img_idx,fname in iterable:
             img = cv2.imread(os.path.join(fname),-1).astype(float)
             self.img_shape = img.shape
@@ -263,8 +365,15 @@ class Segment_Class(object):
                 self.img_shape = img.shape
                 stk = np.empty([self.img_shape[0],self.img_shape[1],len(self.pos_metadata)])
             stk[:,:,img_idx]=img
+            
+        """ Find Beads and register to Spots"""
         if self.two_dimensional:
-            self.nuclear_stack = self.project_image(stk)#self.process_stk(self.project_image(stk)[:,:,None])
+            image = self.project_image(stk)
+            i2 = interpolate.interp2d(np.array(range(image.shape[1]))+self.translation_x, 
+                                  np.array(range(image.shape[0]))+self.translation_y, 
+                                  image,fill_value=0)
+            image = i2(range(image.shape[1]), range(image.shape[0]))
+            self.nuclear_stack = image
             self.nuclear_images = [self.nuclear_stack]
         else:
             self.nuclear_stack = self.project_stk(stk)
