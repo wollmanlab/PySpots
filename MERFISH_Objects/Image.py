@@ -50,8 +50,6 @@ class Image_Class(object):
         self.fishdata = FISHData(os.path.join(self.metadata_path,self.parameters['fishdata']))
         
         self.hotpixel = self.utilities.load_data(Dataset=self.dataset,Type='hot_pixels')
-        self.hotpixel_X=self.hotpixel[0]
-        self.hotpixel_Y=self.hotpixel[1]
         self.chromatic_dict = self.merfish_config.chromatic_dict
         self.projection_function=self.parameters['projection_function']
         self.dtype=self.parameters['dtype']
@@ -74,7 +72,10 @@ class Image_Class(object):
             os.mkdir(os.path.join(self.image_daemon_path,'output'))
         
     def run(self):
-        self.check_flags()
+        if self.parameters['image_overwrite']:
+            self.main()
+        else:
+            self.check_flags()
             
     def check_flags(self):
         """FIX Move to Class"""
@@ -188,7 +189,8 @@ class Image_Class(object):
                     self.deconvolve()
                 self.smooth()
             """ Call Spots"""
-            self.call_spots() 
+            if self.parameters['image_call_spots']:
+                self.call_spots()
             self.save_data()
             
     def update_user(self,message):
@@ -213,46 +215,51 @@ class Image_Class(object):
                                                        dataset=self.dataset,
                                                        posname=self.posname,
                                                        hybe=self.hybe)
-            self.translation_x = self.translation['x']
-            self.translation_y = self.translation['y']
-            self.translation_z = 0#int(round(self.translation['z']))
-            
-            """ Calculate Zindexes """
-            self.k = self.parameters['projection_k']
-            if self.two_dimensional:
-                zindexes = [0]
+            if isinstance(self.translation,type(None)):
+                self.proceed = False
             else:
-                zindexes = list(range(self.zindex-self.k+self.translation_z,self.zindex+self.k+self.translation_z+1))
-            # Might be issues if the z transformation is too large
+                self.translation_x = self.translation['x']
+                self.translation_y = self.translation['y']
+                self.translation_z = 0#int(round(self.translation['z']))
             
-            """ Loading Images """
-            if self.verbose:
-                self.update_user('Loading Sub Stack')
-            try:
+                """ Calculate Zindexes """
+                self.k = self.parameters['projection_k']
                 if self.two_dimensional:
-                    """ Use all zindexes"""
-                    self.sub_stk = self.metadata.stkread(Position=self.posname,
-                                                         Channel=self.channel,
-                                                         verbose=self.verbose).astype(self.dtype)
+                    zindexes = [0]
                 else:
-                    """ Use some zindexes"""
-                    self.sub_stk = self.metadata.stkread(Position=self.posname,
-                                                         Channel=self.channel,
-                                                         Zindex=zindexes,
-                                                         verbose=self.verbose).astype(self.dtype)
+                    zindexes = list(range(self.zindex-self.k+self.translation_z,self.zindex+self.k+self.translation_z+1))
+                # Might be issues if the z transformation is too large
 
-            except:
-                # Translation in z too large for this z index
-                # Just use an average image for this position
-                # Zeros may be an issue here
-                """ use the minimum of all zindexes"""
+                """ Loading Images """
                 if self.verbose:
-                    self.update_user('Using min of image')
+                    self.update_user('Loading Sub Stack')
                 try:
-                    self.sub_stk = self.metadata.stkread(Position=self.posname,hybe=self.hybe,Channel=self.channel,verbose=self.verbose).astype(self.dtype)
-                    self.sub_stk = np.min(self.sub_stk,axis=2)
+                    if self.two_dimensional:
+                        """ Use all zindexes"""
+                        self.sub_stk = self.metadata.stkread(Position=self.posname,
+                                                             Channel=self.channel,
+                                                             verbose=self.verbose).astype(self.dtype)
+                    else:
+                        """ Use some zindexes"""
+                        self.sub_stk = self.metadata.stkread(Position=self.posname,
+                                                             Channel=self.channel,
+                                                             Zindex=zindexes,
+                                                             verbose=self.verbose).astype(self.dtype)
+
                 except:
-                    print('Likely this channel wasnt imaged')
+                    # Translation in z too large for this z index
+                    # Just use an average image for this position
+                    # Zeros may be an issue here
+                    """ use the minimum of all zindexes"""
+                    if self.verbose:
+                        self.update_user('Using min of image')
+                    try:
+                        self.sub_stk = self.metadata.stkread(Position=self.posname,hybe=self.hybe,Channel=self.channel,verbose=self.verbose).astype(self.dtype)
+                        self.sub_stk = np.min(self.sub_stk,axis=2)
+                    except:
+                        print('Likely this channel wasnt imaged')
+                        print(self.posname,self.hybe,self.channel)
+                        self.proceed = False
 
     def project(self):
         """ Wrapper """
@@ -311,13 +318,15 @@ class Image_Class(object):
         self.create_hotpixel_kernel()
         if self.verbose:
             self.update_user('Correcting Hot Pixels')
+        self.hotpixel_X=self.hotpixel[0]
+        self.hotpixel_Y=self.hotpixel[1]
         self.img[self.hotpixel_X,self.hotpixel_Y] = convolve(self.img,self.hotpixel_kernel)[self.hotpixel_X,self.hotpixel_Y]    
         
     def register_image_xy(self):
         """ warp image to correct for chromatic and translation"""
         if self.verbose:
             self.update_user('Correcting Chromatic and Translaton')
-        i2 = interpolate.interp2d(self.chromatic_x+self.translation_x, self.chromatic_y+self.translation_y, self.img)
+        i2 = interpolate.interp2d(self.chromatic_x+self.translation_x, self.chromatic_y+self.translation_y, self.img,fill_value=None)
         self.img = i2(range(self.len_x), range(self.len_y))
         
     def blur(self,method,kernel):
@@ -385,6 +394,8 @@ class Image_Class(object):
         """ Fixes issue with converting bits and going pass max/min"""
         if self.verbose:
             self.update_user('Converting Image Dtype')
+        # Add a gain here to use more of the dynamic range 
+        self.img = self.img*self.parameters['gain']
         # Add code here to prevent lapping past min to max
         self.img[self.img<=np.iinfo(self.dtype).min] = np.iinfo(self.dtype).min
         self.img[self.img>=np.iinfo(self.dtype).max] = np.iinfo(self.dtype).max
@@ -399,9 +410,6 @@ class Image_Class(object):
         zscore[zscore<0] = 0
         
         """ Detect Spots"""
-        # self.parameters['spot_diameter'] = 3
-        # self.parameters['spot_minmass'] = 2
-        # self.parameters['spot_separation'] = 1
         self.spots = tp.locate(zscore,
                                self.parameters['spot_diameter'],
                                minmass=self.parameters['spot_minmass'],
@@ -416,6 +424,7 @@ class Image_Class(object):
                                     Channel=self.channel,
                                     Zindex=self.zindex,
                                     Type='log')
+            
     def save_data(self):
         """ Save Data using FISHDATA"""
         if self.verbose:
@@ -428,13 +437,14 @@ class Image_Class(object):
                                         hybe=self.hybe,
                                         channel=self.channel,
                                         zindex=self.zindex)
-        self.fishdata.add_and_save_data(self.spots,
-                                        'spotcalls',
-                                        dataset=self.dataset,
-                                        posname=self.posname,
-                                        hybe=self.hybe,
-                                        channel=self.channel,
-                                        zindex=self.zindex)
+        if self.parameters['image_call_spots']:
+            self.fishdata.add_and_save_data(self.spots,
+                                            'spotcalls',
+                                            dataset=self.dataset,
+                                            posname=self.posname,
+                                            hybe=self.hybe,
+                                            channel=self.channel,
+                                            zindex=self.zindex)
         self.utilities.save_data('Passed',
                                     Dataset=self.dataset,
                                     Position=self.posname,
