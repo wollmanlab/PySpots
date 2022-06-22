@@ -538,12 +538,12 @@ class Segment_Class(object):
             x,y,z = np.array(region.centroid).astype(int)
             nuclear_area = region.area
             total_area = np.sum(1*(self.voronoi_stack==region.label))
-            metadata.append(pd.DataFrame([cell_id,x,y,z,nuclear_area,total_area,self.posname],index=['cell_id','x_pixel','y_pixel','z_index','nuclear_area','total_area','posname']).T)
+            metadata.append(pd.DataFrame([cell_id,x,y,z,nuclear_area,total_area,self.posname],index=['cell_id','pixel_x','pixel_y','z_index','nuclear_area','total_area','posname']).T)
         if len(metadata)>0:
             metadata = pd.concat(metadata,ignore_index=True)
         else:
             # maybe fail position here
-            metadata = pd.DataFrame(columns=['cell_id','x_pixel','y_pixel','z_index','nuclear_area','total_area','posname'])
+            metadata = pd.DataFrame(columns=['cell_id','pixel_x','pixel_y','z_index','nuclear_area','total_area','posname'])
         self.cell_metadata = metadata
         self.save_masks()
         self.fishdata.add_and_save_data(self.cell_metadata,

@@ -224,12 +224,14 @@ camera_direction_dict = {'default':[-1,-1],
                         'sham1_3_2022Jan03':[-1,-1],    
                         'Sham_2_4_2022Jan21':[-1,-1],
                         'Sham_3_4_2022Jan25':[-1,-1],
+                        'TBI-1-1_2021Oct20':[-1,-1],
                         'TBI_3_1_2022Jan15':[-1,-1],
                         'TBI4_1_2022Jan11':[-1,-1]}
-xy_flip_dict = {'default':True,
+xy_flip_dict = {'default':False,
                 'sham1_3_2022Jan03':True,
                 'Sham_2_4_2022Jan21':False,
                 'Sham_3_4_2022Jan25':False,
+                'TBI-1-1_2021Oct20':True,
                 'TBI_3_1_2022Jan15':False,
                 'TBI4_1_2022Jan11':True}
 

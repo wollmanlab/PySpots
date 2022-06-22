@@ -337,6 +337,10 @@ class Dataset_Class(object):
         pos_locations = {pos:self.metadata.image_table[self.metadata.image_table.Position==pos].XY.iloc[0] for pos in self.posnames}
         self.cell_metadata['posname_stage_x'] = [pos_locations[pos][0] for pos in self.cell_metadata.posname]
         self.cell_metadata['posname_stage_y'] = [pos_locations[pos][1] for pos in self.cell_metadata.posname]
+
+        self.transcripts['posname_stage_x'] = [pos_locations[pos][0] for pos in self.transcripts.posname]
+        self.transcripts['posname_stage_y'] = [pos_locations[pos][1] for pos in self.transcripts.posname]
+
         pixel_size = self.parameters['pixel_size']
         if self.dataset in self.parameters['camera_direction_dict'].keys():
             self.parameters['camera_direction'] = self.parameters['camera_direction_dict'][self.dataset]
@@ -347,14 +351,18 @@ class Dataset_Class(object):
         else:
             self.parameters['xy_flip'] = self.parameters['xy_flip_dict']['default']
         if self.parameters['xy_flip']:
-            stage_x = np.array(self.cell_metadata['posname_stage_x']) + self.parameters['camera_direction'][0]*pixel_size*np.array(self.cell_metadata['x_pixel'])
-            stage_y = np.array(self.cell_metadata['posname_stage_y']) + self.parameters['camera_direction'][1]*pixel_size*np.array(self.cell_metadata['y_pixel'])
+            self.cell_metadata['stage_x'] = np.array(self.cell_metadata['posname_stage_x']) + self.parameters['camera_direction'][0]*pixel_size*np.array(self.cell_metadata['x_pixel'])
+            self.cell_metadata['stage_y'] = np.array(self.cell_metadata['posname_stage_y']) + self.parameters['camera_direction'][1]*pixel_size*np.array(self.cell_metadata['y_pixel'])
+
+            self.transcripts['stage_x'] = np.array(self.transcripts['posname_stage_x']) + self.parameters['camera_direction'][0]*pixel_size*np.array(self.transcripts['y'])
+            self.transcripts['stage_y'] = np.array(self.transcripts['posname_stage_y']) + self.parameters['camera_direction'][1]*pixel_size*np.array(self.transcripts['x'])
         else:
-            stage_x = np.array(self.cell_metadata['posname_stage_x']) + self.parameters['camera_direction'][0]*pixel_size*np.array(self.cell_metadata['y_pixel'])
-            stage_y = np.array(self.cell_metadata['posname_stage_y']) + self.parameters['camera_direction'][1]*pixel_size*np.array(self.cell_metadata['x_pixel'])
-        self.cell_metadata['stage_x'] = stage_x
-        self.cell_metadata['stage_y'] = stage_y
-            
+            self.cell_metadata['stage_x'] = np.array(self.cell_metadata['posname_stage_x']) + self.parameters['camera_direction'][0]*pixel_size*np.array(self.cell_metadata['y_pixel'])
+            self.cell_metadata['stage_y'] = np.array(self.cell_metadata['posname_stage_y']) + self.parameters['camera_direction'][1]*pixel_size*np.array(self.cell_metadata['x_pixel'])
+
+            self.transcripts['stage_x'] = np.array(self.transcripts['posname_stage_x']) + self.parameters['camera_direction'][0]*pixel_size*np.array(self.transcripts['x'])
+            self.transcripts['stage_y'] = np.array(self.transcripts['posname_stage_y']) + self.parameters['camera_direction'][1]*pixel_size*np.array(self.transcripts['y'])
+                
     def save_data(self):
         """ Save Data """
         if self.verbose:
