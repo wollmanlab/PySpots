@@ -6,6 +6,7 @@ from MERFISH_Objects.Daemons import *
 import parser
 
 
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("metadata_path", type=str, help="metadata_path")
