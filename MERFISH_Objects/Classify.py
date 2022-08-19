@@ -239,6 +239,8 @@ class Classify_Class(object):
 #                                         Type='log')
             else:
                 self.spots = pd.concat(spots_out,ignore_index=True)
+        if self.verbose:
+            self.update_user(str(len(self.spots))+' Spots Found')
         
     def generate_spots(self):
         """ Generate Spots for all bits for this Zindex """
@@ -293,6 +295,8 @@ class Classify_Class(object):
         self.spots = self.spots[self.spots['label'].isin(good_labels)]
         if self.verbose:
             self.update_user(str(len(self.spots))+' Spots Remaining')
+        if self.verbose:
+            self.update_user(str(np.unique(self.spots['label']).shape[0])+' Potential Transcripts Found')
         if self.spots.shape[0]==0:
             """ Error No Spots Detected"""
             self.passed = False
