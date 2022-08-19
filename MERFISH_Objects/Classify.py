@@ -275,19 +275,24 @@ class Classify_Class(object):
 
         else:
             self.spots = pd.concat(spots_out,ignore_index=True)
+        if self.vebose:
+            self.update_user(str(len(self.spots))+' Spots Found')
         
     def pair_spots(self):
         """ Pair spots to transcripts"""
         if self.verbose:
             self.update_user('Pairing spots')
-        X = np.zeros([self.spots.shape[0],3])
+        X = np.zeros([self.spots.shape[0],2])
         X[:,0] = self.spots.x.astype(float)*self.parameters['pixel_size']
         X[:,1] = self.spots.y.astype(float)*self.parameters['pixel_size']
-        X[:,2] = self.spots.zindex.astype(float)*self.merfish_config.parameters['z_step_size']
-        clustering = DBSCAN(eps=self.parameters['spot_max_distance']*self.parameters['pixel_size'], min_samples=3).fit(X)
-        self.spots['label'] = clustering.labels_
-        good_labels = [i for i,c in Counter(clustering.labels_).items() if c<6]
+        # X[:,2] = self.spots.zindex.astype(float)*self.merfish_config.parameters['z_step_size']
+        # clustering = DBSCAN(eps=self.parameters['spot_max_distance']*self.parameters['pixel_size'], min_samples=3).fit(X)
+        xy_labels,cluster_df = MNN_Agglomerative(X,max_distance = self.parameters['spot_max_distance'],verbose=self.verbose)
+        self.spots['label'] = xy_labels#clustering.labels_
+        good_labels = [i for i,c in Counter(xy_labels).items() if (c<8)&(i!=0)&(c>1)]
         self.spots = self.spots[self.spots['label'].isin(good_labels)]
+        if self.vebose:
+            self.update_user(str(len(self.spots))+' Spots Remaining')
         if self.spots.shape[0]==0:
             """ Error No Spots Detected"""
             self.passed = False
@@ -312,21 +317,73 @@ class Classify_Class(object):
         labels_converter = {j:i for i,j  in enumerate(np.unique(self.spots['label']))}
         self.spots['idx'] = [labels_converter[i] for i in self.spots['label']]
         self.measured_barcodes[np.array(self.spots['idx']).astype(int),np.array(self.spots['bit']).astype(int)] = 1
-    
+
+    def build_vectors(self):
+        self.vectors = np.zeros_like(self.measured_barcodes)
+        if self.verbose:
+            iterable = tqdm(enumerate(list(np.unique(self.spots['idx']))),total=len(list(np.unique(self.spots['idx']))),desc='Building Vector')
+        else:
+            iterable = enumerate(list(np.unique(self.spots['idx'])))
+        for i,idx in iterable:
+            mask = self.spots['idx']==idx
+            if np.sum(mask)==0:
+                continue
+            temp = self.spots[mask]
+            V = self.stk[int(temp.y.mean()),int(temp.x.mean()),:] ### Pull positive bits from called spots 
+            for spot,row in temp.iterrows():
+                V[int(row['bit'])] = self.stk[int(row.y),int(row.x),int(row['bit'])]
+            self.vectors[i,:] = V
+
+    def update_binary(self):
+        if self.verbose:
+            self.update_user('Updating Binary')
+        from sklearn.model_selection import train_test_split
+        """ Update Binary with logistic """
+        self.updatad_measured_barcodes = np.zeros_like(self.measured_barcodes)
+        for i in trange(self.vectors.shape[1]):
+            data = pd.DataFrame(self.vectors[:,i])
+            data['X'] = self.measured_barcodes[:,i].numpy()==1
+            data = data[self.measured_barcodes.sum(1).numpy()>2]
+            data_true = data.loc[data[data['X']==True].index]
+            data_false = data.loc[data[data['X']==False].index]
+            """ downsample to same size """
+            s = np.min([data_true.shape[0],data_false.shape[0]])
+            data_true_down = data_true.loc[np.random.choice(data_true.index,s,replace=False)]
+            data_false_down = data_false.loc[np.random.choice(data_false.index,s,replace=False)]
+            data_down = pd.concat([data_true_down,data_false_down])
+            X_train, X_test, y_train, y_test = train_test_split(data_down.drop('X',axis=1),data_down['X'], test_size=0.30,random_state=101)
+            from sklearn import preprocessing
+            self.scaler = preprocessing.StandardScaler().fit(X_train)
+            X_train_scaled = X_train#self.scaler.transform(X_train)
+            X_test_scaled = X_test#self.scaler.transform(X_test)
+            from sklearn.linear_model import LogisticRegression
+            self.logmodel = LogisticRegression(max_iter=1000)
+            self.logmodel.fit(X_train_scaled,y_train)
+            # predictions = self.logmodel.predict(X_test_scaled)
+            # from sklearn.metrics import classification_report
+            # print(classification_report(y_test,predictions))
+            predictions = self.logmodel.predict(pd.DataFrame(self.vectors[:,i]))
+            self.updatad_measured_barcodes[:,i] = 1*predictions
+        self.updatad_measured_barcodes = torch.tensor(self.updatad_measured_barcodes)
+
     def assign_codewords(self):
         """ Assign codeword to transcripts """
         if self.verbose:
             self.update_user('Assigning Codewords')
         """ Decode """
         self.barcodes = torch.tensor(self.merfish_config.all_codeword_vectors.astype(float))
-        values,cwords = torch.cdist(self.measured_barcodes.float(),self.barcodes.float()).min(1)
+        self.build_vectors()
+        self.update_binary()
+        values,cwords = torch.cdist(self.updatad_measured_barcodes.float(),self.barcodes.float()).min(1)
         values = values**2 # Return to bitwise distance
         values = torch.tensor([round(i) for i in values.numpy()])
         """ Filter to good decoded """
-        mask = values<2
+        mask = values<2 # CHANGE 2 bit error max
         self.good_values = values[mask]
         self.good_cwords = cwords[mask]
-        self.good_indices = torch.tensor(np.array(range(self.measured_barcodes.shape[0])))[mask]
+        self.good_indices = torch.tensor(np.array(range(self.updatad_measured_barcodes.shape[0])))[mask]
+        if self.vebose:
+            self.update_user(str(self.good_indices.shape[0])+' Transcripts Found')
         if self.good_indices.shape[0]==0:
             """ Error No Spots Detected"""
             self.passed = False
@@ -351,7 +408,11 @@ class Classify_Class(object):
             self.update_user('Collapsing Spots')
         """ Collapse Spots to Counts """
         transcripts = []
-        for i,idx in enumerate(list(self.good_indices.numpy())):
+        if self.verbose:
+            iterable = tqdm(enumerate(list(self.good_indices.numpy())),total=len(list(self.good_indices.numpy())))
+        else:
+            iterable = enumerate(list(self.good_indices.numpy()))
+        for i,idx in iterable:
             """ What information should be passed along to logistic regressor"""
             mask = self.spots['idx']==idx
             if np.sum(mask)==0:
@@ -364,11 +425,13 @@ class Classify_Class(object):
             negative_bits = negative_bits[np.isin(negative_bits,expected_positive_bits)==False]
             # remove False positives before averaging?
             dispersion = (self.parameters['pixel_size']*temp.x.std())+(self.parameters['pixel_size']*temp.y.std())+(self.parameters['z_step_size']*temp.zindex.std())
+            """ Vector of Signal?"""
+            V = self.stk[int(temp.y.mean()),int(temp.x.mean()),:] ### Pull positive bits from called spots 
+            for spot,row in temp.iterrows():
+                V[int(row['bit'])] = self.stk[int(row.y),int(row.x),int(row['bit'])]
             temp = temp.mean()
             temp['intensity'] = temp['signal']
             temp['dispersion'] = dispersion
-            """ Vector of Signal?"""
-            V = self.stk[int(temp.y),int(temp.x),:]
             pos_signal = np.mean(V[expected_positive_bits])
             neg_signal = np.mean(V[negative_bits])
             correct_bits = int(0)
@@ -462,3 +525,77 @@ class Classify_Class(object):
         # self.utilities = Utilities_Class(self.utilities_path)
         # self.logmodel = self.utilities.load_data(Dataset=self.dataset,Type='models')
         
+
+from scipy.spatial import cKDTree
+
+def MNN_Agglomerative(xy,max_distance = 20,max_iterations=10,verbose = False):
+    cluster_df = pd.DataFrame(index=range(xy.shape[0]))
+    cluster_df['x'] = xy[:,0]
+    cluster_df['y'] = xy[:,1]
+    cluster_df['idxes'] = [[i] for i in range(xy.shape[0])]
+    cluster_df['labels'] = 0
+    cluster_df['x_std'] = 0
+    cluster_df['y_std'] = 0
+    og_cluster_df = cluster_df.copy()
+    for iteration in range(max_iterations):
+        cluster_xy = np.array(cluster_df[['x','y']])
+        xyindex = cKDTree(cluster_xy)
+        xy_dists, xy_idx = xyindex.query(cluster_xy, k=2)
+        mnn = (xy_idx[xy_idx[:,1],1]==xy_idx[:,0])
+        mnn = mnn&(xy_dists[:,1]<max_distance)
+        points = xy_idx[mnn,0]
+        seeds = []
+        for idx in points:
+            if not xy_idx[idx,1]-1 in seeds:
+                seeds.append(idx)
+        if len(seeds)==0:
+            break
+        new_cluster_xy = np.zeros([len(seeds),2])
+        new_cluster_x = np.zeros(len(seeds))
+        new_cluster_y = np.zeros(len(seeds))
+        new_cluster_x_std = np.zeros(len(seeds))
+        new_cluster_y_std = np.zeros(len(seeds))
+        new_cluster_idxes = []
+        new_cluster_labels = np.zeros(len(seeds))
+        if verbose:
+            iterable = tqdm(enumerate(seeds),total=len(seeds))
+        else:
+            iterable = enumerate(seeds)
+        for i,seed in iterable:
+            if new_cluster_labels.max()==0:
+                new_cluster_label = cluster_df['labels'].max()+1
+            else:
+                new_cluster_label = new_cluster_labels.max()+1
+            pair = [seed,xy_idx[seed,1]]
+            temp = cluster_df['idxes'].iloc[pair[0]]
+            temp.extend(cluster_df['idxes'].iloc[pair[1]])
+            # new_cluster_idxes.append(temp)
+            temp = list(np.unique(temp))
+            new_cluster_idxes.append(temp)
+            new_cluster_x[i] = og_cluster_df['x'].iloc[temp].mean()
+            new_cluster_y[i] = og_cluster_df['y'].iloc[temp].mean()
+            new_cluster_x_std[i] = og_cluster_df['x'].iloc[temp].std()
+            new_cluster_y_std[i] = og_cluster_df['y'].iloc[temp].std()
+            # new_cluster_xy[i,:] = og_cluster_df[['x','y']].iloc[new_cluster_idxes].mean(0)
+            # new_cluster_xy[i,:] = cluster_xy[pair,:].mean(0)
+            new_cluster_labels[i] = new_cluster_label
+            # break
+        # break
+        new_cluster_df = pd.DataFrame(index=range(len(seeds)))
+        new_cluster_df['x'] = new_cluster_x
+        new_cluster_df['y'] = new_cluster_y
+        new_cluster_df['x_std'] = new_cluster_x_std
+        new_cluster_df['y_std'] = new_cluster_y_std
+        new_cluster_df['idxes'] = new_cluster_idxes
+        new_cluster_df['labels'] = new_cluster_labels
+        points_indexes = cluster_df.iloc[points].index
+        cluster_df = cluster_df.drop(index = points_indexes)
+        cluster_df = pd.concat([cluster_df,new_cluster_df],ignore_index=True)
+        if max_iterations==iteration:
+            print('Failed To Coverge')
+    cluster_df = cluster_df.drop_duplicates(subset=['x','y'])
+    cluster_df['n_spots'] = [len(i) for i in cluster_df['idxes']]
+    xy_labels = np.zeros(xy.shape[0])
+    for idx,row in cluster_df[cluster_df['labels']!=0].iterrows():
+        xy_labels[row['idxes']] = row['labels']
+    return xy_labels,cluster_df

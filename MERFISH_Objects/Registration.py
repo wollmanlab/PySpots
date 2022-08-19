@@ -165,7 +165,7 @@ class Registration_Class(object):
     def load_image(self,hybe,channel):
         """ Load Image for image based registration"""
         ### Need to move from hardcode
-        acq = [i for i in os.listdir(self.metadata_path) if hybe+'_' in i][0]
+        acq = [i for i in os.listdir(self.metadata_path) if hybe+'_' in i][-1]
         temp_metadata = Metadata(os.path.join(self.metadata_path,acq))
         try:
             stk = temp_metadata.stkread(Position=self.posname,Channel=channel,hybe=hybe)
@@ -296,7 +296,8 @@ class Registration_Class(object):
         return img
         
     def load_stack(self):
-        self.metadata = Metadata(self.metadata_path)
+        self.acq = [i for i in os.listdir(self.metadata_path) if self.hybe+'_' in i][-1]
+        self.metadata = Metadata(os.path.join(self.metadata_path,self.acq))
         try:
             self.stk = self.metadata.stkread(Position=self.posname,Channel=self.channel,hybe=self.hybe).astype(float)
         except:
@@ -371,7 +372,7 @@ class Registration_Class(object):
         # for i in range(self.stk.shape[2]):
         #     self.stk[:,:,i] = gaussian_filter(self.stk[:,:,i],2)
         if self.two_dimensional:
-            self.stk = self.stk.mean(axis=2)
+            self.stk = self.stk.mean(axis=2)[:,:,None]
 
     def generate_template(self):
         #Create Bead Template
@@ -415,6 +416,7 @@ class Registration_Class(object):
 
         self.load_stack()
         # Find Beads in 2D First
+
         img = self.stk.mean(2) # Mean is more robust to noise and out of focus light
         """ Zscore Image"""
         temp = np.percentile(img.ravel(),[25,50,75])
@@ -455,7 +457,8 @@ class Registration_Class(object):
                                                (substk.shape[0]*self.upsamp_factor,
                                                 substk.shape[1]*self.upsamp_factor),
                                                 mode='constant',anti_aliasing=False)
-                    except:
+                    except Exception as e:
+                        print(e)
                         continue
                     bead_match = match_template(upsamp_substk,
                                                 self.upsamp_bead, pad_input=True)
@@ -505,13 +508,14 @@ class Registration_Class(object):
                                                (substk.shape[0]*self.upsamp_factor,
                                                 substk.shape[1]*self.upsamp_factor),
                                                 mode='constant',anti_aliasing=False)
-                    except:
+                    except Exception as e:
+                        print(e)
                         continue
                     yu = np.argmax(gaussian_filter(np.array([upsamp_substk[d,:,:].mean() for d in range(upsamp_substk.shape[0])]),5))
                     xu = np.argmax(gaussian_filter(np.array([upsamp_substk[:,d,:].mean() for d in range(upsamp_substk.shape[1])]),5))
                     yu = (yu-int(upsamp_substk.shape[0]/2))/self.upsamp_factor
                     xu = (xu-int(upsamp_substk.shape[1]/2))/self.upsamp_factor
-                    ys, xs, zs = (yu+y, xu+x)
+                    ys, xs, zs = (yu+y, xu+x,0)
                 else:
                     substk = self.stk[y-window:y+window+1, x-window:x+window+1,:]
                     if substk.shape[0] != 2*window+1 or substk.shape[1] != 2*window+1:
@@ -522,7 +526,8 @@ class Registration_Class(object):
                                                 substk.shape[1]*self.upsamp_factor,
                                                 substk.shape[2]*self.upsamp_factor),
                                                 mode='constant',anti_aliasing=False)
-                    except:
+                    except Exception as e:
+                        print(e)
                         continue
                     yu = np.argmax(gaussian_filter(np.array([upsamp_substk[d,:,:].mean() for d in range(upsamp_substk.shape[0])]),5))
                     xu = np.argmax(gaussian_filter(np.array([upsamp_substk[:,d,:].mean() for d in range(upsamp_substk.shape[1])]),5))
@@ -533,7 +538,7 @@ class Registration_Class(object):
                     if zu==0:
                         continue
                     ys, xs, zs = (yu+y, xu+x, zu)
-                    subpixel_beads.append((ys, xs, zs))
+                subpixel_beads.append((ys, xs, zs))
         
         self.beads = subpixel_beads
         # del self.stk

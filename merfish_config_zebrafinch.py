@@ -15,88 +15,37 @@ from sklearn.preprocessing import normalize
 from hybescope_config.microscope_config import *
 
 """ Order in which the barcode was imaged and with which color"""
-bitmap = [('RS0095_cy5', 'hybe1', 'FarRed'),
-            ('RS0109_cy5', 'hybe2', 'FarRed'),
-            ('RS0175_cy5', 'hybe3', 'FarRed'),
-            ('RS0237_cy5', 'hybe4', 'FarRed'),
-            ('RS0307_cy5', 'hybe5', 'FarRed'),
-            ('RS0332_cy5', 'hybe6', 'FarRed'),
-            ('RSN9927.0_cy5', 'hybe7', 'FarRed'),
-            ('RSN2336.0_cy5', 'hybe8', 'FarRed'),
-            ('RSN1807.0_cy5', 'hybe9', 'FarRed'),
-            ('RS0384_cy5', 'hybe10', 'FarRed'),
-            ('RS0406_cy5', 'hybe11', 'FarRed'),
-            ('RS0451_cy5', 'hybe12', 'FarRed'),
-            ('RS0468_cy5', 'hybe13', 'FarRed'),
-            ('RS0548_cy5', 'hybe14', 'FarRed'),
-            ('RS64.0_cy5', 'hybe15', 'FarRed'),
-            ('RSN4287.0_cy5', 'hybe16', 'FarRed'),
-            ('RSN1252.0_cy5', 'hybe17', 'FarRed'),
-            ('RSN9535.0_cy5', 'hybe18', 'FarRed')]
+bitmap = [('RS0095', 'hybe1', 'FarRed'),
+         ('RS0109', 'hybe2', 'FarRed'),
+         ('RS0175', 'hybe3', 'FarRed'),
+         ('RS0237', 'hybe4', 'FarRed'),
+         ('RS0307', 'hybe5', 'FarRed'),
+         ('RS0332', 'hybe6', 'FarRed'),
+         ('RS0384', 'hybe10', 'FarRed'),
+         ('RS0406', 'hybe11', 'FarRed'),
+         ('RS0451', 'hybe12', 'FarRed'),
+         ('RS0468', 'hybe13', 'FarRed'),
+         ('RS0548', 'hybe14', 'FarRed'),
+         ('RS64.0', 'hybe15', 'FarRed'),
+         ('RS156.0', 'hybe19', 'FarRed'),
+         ('RS278.0', 'hybe20', 'FarRed'),
+         ('RS313.0', 'hybe21', 'FarRed'),
+         ('RS643.0', 'hybe22', 'FarRed'),
+         ('RS740.0', 'hybe23', 'FarRed'),
+         ('RS810.0', 'hybe24', 'FarRed')]
 
-bitmap = [('RS0095_cy5', 'hybe1', 'FarRed'),
-            ('RS0109_cy5', 'hybe2', 'FarRed'),
-            ('RS0175_cy5', 'hybe3', 'FarRed'),
-            ('RS0237_cy5', 'hybe4', 'FarRed'),
-            ('RS0307_cy5', 'hybe5', 'FarRed'),
-            ('RS0332_cy5', 'hybe6', 'FarRed'),
-            ('RSN9927.0_cy5', 'hybe7', 'FarRed'),
-            ('RSN2336.0_cy5', 'hybe8', 'FarRed'),
-            ('RSN1807.0_cy5', 'hybe9', 'FarRed'),
-            ('RS0384_atto565', 'hybe10', 'FarRed'),
-            ('RS0406_atto565', 'hybe11', 'FarRed'),
-            ('RS0451_atto565', 'hybe12', 'FarRed'),
-            ('RS0468_atto565', 'hybe13', 'FarRed'),
-            ('RS0548_atto565', 'hybe14', 'FarRed'),
-            ('RS64.0_atto565', 'hybe15', 'FarRed'),
-            ('RSN4287.0_atto565', 'hybe16', 'FarRed'),
-            ('RSN1252.0_atto565', 'hybe17', 'FarRed'),
-            ('RSN9535.0_atto565', 'hybe18', 'FarRed')]
 nbits = len(bitmap)
 
 """ For Loading the Codebook"""
-codebook_pth = '/bigstore/binfo/Codebooks/Zebra_Finch_Codebook_Final.txt'
-def load_codebook(fname):
-    barcodes = []
-    with open(fname, 'r') as f:
-        for line in f.readlines():
-            bc = map(int, line.strip().split(','))
-            barcodes.append(list(bc))
-    return np.array(barcodes)
+codebook_path = '/bigstore/binfo/Codebooks/zebrafinch_remade.csv'
+codebook = pd.read_csv(codebook_path,index_col=0)
+gids = [i for i in codebook.index if not 'blank' in i]
+bids = [i for i in codebook.index if  'blank' in i]
+aids = [i for i in codebook.index]
+gene_codeword_vectors = np.array(codebook.loc[gids])
+blank_codeword_vectors = np.array(codebook.loc[bids])
+all_codeword_vectors = np.array(codebook.loc[aids])
 
-""" Load Possible Barcodes"""
-base_pth = '/home/zach/PythonRepos/PySpots/hybescope_config/'
-if nbits==18:
-    possible_cwords = load_codebook(os.path.join(base_pth,'MHD4_18bit_187cwords.csv'))
-elif nbits==24:
-    possible_cwords = load_codebook(os.path.join(base_pth,'MHD4_24bit_472cwords.csv'))
-else:
-    raise NameError('Likely Bitmap is wrong')
-
-""" Load Designed Barcodes """
-codebook = pd.read_csv(codebook_pth,skiprows=3)
-codebook.columns = [i.split(' ')[-1] for i in codebook.columns]
-codebook['barcode'] = [str(i).zfill(nbits) for i in codebook['barcode']]
-
-""" Add Blank Barcodes to Codebook """
-blank_cwords = []
-blank_names = []
-for i in range(possible_cwords.shape[0]):
-    barcode = ''.join([str(b) for b in possible_cwords[i,:]])
-    if not barcode in list(codebook['barcode']):
-        blank_cwords.append(possible_cwords[i,:])
-        blank_names.append('blank'+str(len(blank_names)))
-blank_cwords = np.stack(blank_cwords)
-true_cwords = np.array([np.array([int(i) for i in codebook['barcode'].iloc[b]]) for b in range(len(codebook))])
-cwords = np.concatenate([true_cwords,blank_cwords])
-
-""" Save in useful formats"""
-gids = list(codebook['name'])
-bids = blank_names
-aids = gids+bids
-gene_codeword_vectors = true_cwords
-blank_codeword_vectors = blank_cwords
-all_codeword_vectors = cwords
 """ Normalize for Angular Comparison"""
 norm_gene_codeword_vectors = normalize(gene_codeword_vectors)
 norm_blank_codeword_vectors = normalize(blank_codeword_vectors)
@@ -105,11 +54,11 @@ norm_all_codeword_vectors = normalize(all_codeword_vectors)
 """ MERFISH Code Parameters"""
 parameters = {}
 """ General """
-parameters['daemon_path']='/scratch/daemon/' # Where should the Daemons Look
-parameters['utilities_path']='/scratch/utilities/' # Where to save temporary files
+parameters['daemon_path']= '/bigstore/GeneralStorage/daemon' #'/scratch/daemon/' # Where should the Daemons Look
+parameters['utilities_path']= '/bigstore/GeneralStorage/utilities'#'/scratch/utilities/' # Where to save temporary files
 parameters['fishdata']='fishdata' #Directory Name for Processed Data >Bigstore>Images[Year]>User.Project>Dataset>fishdata
 parameters['verbose']=False # If you want print statements (Mostly for diagnostics)
-parameters['two_dimensional']=False #Work in 2 or 3 dimensions
+parameters['two_dimensional']=True #Work in 2 or 3 dimensions
 parameters['pixel_size'] = 0.083 #1.5 => 0.083 #1=> 0.123# size of pixel in um
 parameters['z_step_size'] = 0.4 # size of step in Z um
 """ Dataset """
@@ -141,7 +90,7 @@ parameters['projection_zstart']=-1 # Which Z index to start (-1 means first)
 parameters['projection_k']=1 # How many Z above and below to include (1 means 1 above and 1 below)
 parameters['projection_zskip']=2 # How many Z indexes to skip
 parameters['projection_zend']=-1 # Which Z index to stop (-1 means last)
-parameters['projection_function']='mean' # Which method to use to project (typically max or mean)
+parameters['projection_function']='max' # Which method to use to project (typically max or mean)
 parameters['dtype_rel_min']=0 # when converting dtypes this amount in percentile will be set to 0
 parameters['dtype_rel_max']=100 # when converting dtypes this amount in percentile will be set to max
 parameters['dtype']='uint16' # dtype to save in
@@ -149,12 +98,12 @@ parameters['background_kernel']=(0.2/parameters['pixel_size']) #200 nm size of k
 parameters['blur_kernel']=(0.05/parameters['pixel_size'])#50nm amount to blur your image to smooth out noise
 parameters['background_method']='gaussian' # method to calculate background
 parameters['blur_method']='gaussian' # method to smooth image
-parameters['deconvolution_niterations']=10 # How many rounds of deconvolution to perform
+parameters['deconvolution_niterations']=0 # How many rounds of deconvolution to perform
 parameters['deconvolution_batches']=10 # how many batches to break up the computation into
 parameters['deconvolution_gpu']=False # do you want to use the gpu
 parameters['gain'] = 10 # gain for saving Images to use more dynamic range 
 parameters['spot_diameter'] = 5 # 250 nm
-parameters['spot_minmass'] = 9 # not based on size?
+parameters['spot_minmass'] = 15#9 # not based on size?
 parameters['spot_separation'] = 3 # 100 nm
 parameters['image_call_spots'] = False
 parameters['image_overwrite'] = True
@@ -168,7 +117,7 @@ parameters['segment_pixel_thresh'] = (100/parameters['pixel_size'])#100 um2 # mi
 parameters['segment_z_thresh'] = 0#5 # How many Z's a cell has to be in to keep
 parameters['segment_distance_thresh'] = 10 # distance to dialate cell in um
 parameters['segment_model_type']="nuclei" # cellpose model type
-parameters['segment_gpu'] = False # use gpu?
+parameters['segment_gpu'] = True # use gpu?
 parameters['segment_batch_size'] = 8 # how many batches to break up calculation
 parameters['segment_diameter'] = (10/parameters['pixel_size']) # size of cell in um2
 parameters['segment_channels'] = [0,0] # grey scale for cellpose
@@ -180,8 +129,21 @@ parameters['segment_overwrite'] = False # Overwrite previous segmentation?
 parameters['segment_nuclear_blur'] = (25/parameters['pixel_size']) # 25 um2 sigma in pixels for background
 parameters['segment_z_step_size'] = 0.4
 parameters['segment_pixel_size'] = parameters['pixel_size']
-parameters['segment_overwrite'] = False
+parameters['segment_overwrite'] = True
+parameters['segment_ncpu'] = 30
 """ Classify """
 parameters['match_thresh'] = -2 # how many mismatched bits to be called a barcode
 parameters['fpr_thresh'] = 0.4 # euclidean distance from barcodes to be called
 parameters['classification_overwrite'] = True
+parameters['logistic_columns'] = ['raw_mass', 'ep','intensity', 'signal', 'noise', 'signal-noise','X']
+spot_parameters = {}
+spot_parameters['default'] = {'spot_max_distance':3,
+                                       'spot_minmass':15,
+                                       'spot_diameter':5,
+                                          'spot_separation':3}
+
+camera_direction_dict = {'default':[-1,-1]}
+xy_flip_dict = {'default':False}
+parameters['camera_direction_dict'] = camera_direction_dict
+parameters['xy_flip_dict'] = xy_flip_dict
+parameters['spot_parameters'] = spot_parameters

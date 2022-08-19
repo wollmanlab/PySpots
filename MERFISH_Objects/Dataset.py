@@ -173,7 +173,11 @@ class Dataset_Class(object):
                 channels = pos_md[pos_md.acq==acq].Channel.unique()
                 channels = set(list(channels)).intersection(self.channels)
                 for channel in channels:
-                    img = np.average(self.metadata.stkread(Position=pos,Channel=channel,acq=acq),axis=2)
+                    try:
+                        img = np.average(self.metadata.stkread(Position=pos,Channel=channel,acq=acq),axis=2)
+                    except Exception as e:
+                        print(e)
+                        print(pos,channel,acq)
                     bkg_sub = img-cv2.filter2D(img,-1,kernel)
                     avg = np.average(bkg_sub)
                     std = np.std(bkg_sub)

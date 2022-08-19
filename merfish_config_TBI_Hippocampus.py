@@ -106,8 +106,8 @@ norm_all_codeword_vectors = normalize(all_codeword_vectors)
 """ MERFISH Code Parameters"""
 parameters = {}
 """ General """
-parameters['daemon_path']='/scratch/daemon/' # Where should the Daemons Look
-parameters['utilities_path']='/scratch/utilities/' # Where to save temporary files
+parameters['daemon_path']= '/bigstore/GeneralStorage/daemon' #'/scratch/daemon/' # Where should the Daemons Look
+parameters['utilities_path']= '/bigstore/GeneralStorage/utilities'#'/scratch/utilities/' # Where to save temporary files
 parameters['fishdata']='fishdata' #Directory Name for Processed Data >Bigstore>Images[Year]>User.Project>Dataset>fishdata
 parameters['verbose']=False # If you want print statements (Mostly for diagnostics)
 parameters['two_dimensional']=False #Work in 2 or 3 dimensions

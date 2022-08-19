@@ -47,7 +47,7 @@ class Image_Class(object):
         self.zindex = int(zindex)
         self.verbose = verbose
         
-        self.acq = [i for i in os.listdir(self.metadata_path) if self.hybe+'_' in i][0]
+        self.acq = [i for i in os.listdir(self.metadata_path) if self.hybe+'_' in i][-1]
         
         self.cword_config = cword_config
         self.merfish_config = importlib.import_module(self.cword_config)
@@ -191,20 +191,21 @@ class Image_Class(object):
         self.load_data()
         if self.proceed:
             if isinstance(self.img,type(None)):
-                """ Process Image"""
+                self.processed_sub_stk = np.zeros_like(self.sub_stk)
+                for i in range(self.processed_sub_stk.shape[2]):
+                    self.img = self.sub_stk[:,:,i]
+                    self.load_chromatic()
+                    self.remove_hotpixels()
+                    self.register_image_xy()
+                    self.subtract_background()
+                    if self.deconvolution_niterations>0:
+                        self.deconvolve()
+                    self.smooth()
+                    self.sub_stk[:,:,i] = self.img
                 self.project()
-                self.load_chromatic()
-                self.remove_hotpixels()
-                self.register_image_xy()
-                self.subtract_background()
-                if self.deconvolution_niterations>0:
-                    self.deconvolve()
-                self.smooth()
-            """ Call Spots"""
-            if self.parameters['image_call_spots']:
-                self.call_spots()
-            self.save_data()
-            
+                self.save_data()
+                   
+   
     def update_user(self,message):
         """ For User Display"""
         i = [i for i in tqdm([],desc=str(datetime.now().strftime("%H:%M:%S"))+' '+str(message))]
@@ -272,6 +273,7 @@ class Image_Class(object):
                         print('Likely this channel wasnt imaged')
                         print(self.posname,self.hybe,self.channel)
                         self.proceed = False
+                self.len_y,self.len_x,self.len_z = self.sub_stk.shape
 
     def project(self):
         """ Wrapper """
@@ -285,7 +287,6 @@ class Image_Class(object):
             self.img = self.project_image(self.sub_stk)
         else:
             raise(ValueError('Sub_stk can only by 2 or 3d',self.sub_stk.shape))
-        self.len_y,self.len_x = self.img.shape
         del self.sub_stk
         
     def project_image(self,sub_stk):
