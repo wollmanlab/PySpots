@@ -275,7 +275,7 @@ class Classify_Class(object):
 
         else:
             self.spots = pd.concat(spots_out,ignore_index=True)
-        if self.vebose:
+        if self.verbose:
             self.update_user(str(len(self.spots))+' Spots Found')
         
     def pair_spots(self):
@@ -291,7 +291,7 @@ class Classify_Class(object):
         self.spots['label'] = xy_labels#clustering.labels_
         good_labels = [i for i,c in Counter(xy_labels).items() if (c<8)&(i!=0)&(c>1)]
         self.spots = self.spots[self.spots['label'].isin(good_labels)]
-        if self.vebose:
+        if self.verbose:
             self.update_user(str(len(self.spots))+' Spots Remaining')
         if self.spots.shape[0]==0:
             """ Error No Spots Detected"""
@@ -382,7 +382,7 @@ class Classify_Class(object):
         self.good_values = values[mask]
         self.good_cwords = cwords[mask]
         self.good_indices = torch.tensor(np.array(range(self.updatad_measured_barcodes.shape[0])))[mask]
-        if self.vebose:
+        if self.verbose:
             self.update_user(str(self.good_indices.shape[0])+' Transcripts Found')
         if self.good_indices.shape[0]==0:
             """ Error No Spots Detected"""
