@@ -1,0 +1,7 @@
+README.md
+setup.py
+pyspots.egg-info/PKG-INFO
+pyspots.egg-info/SOURCES.txt
+pyspots.egg-info/dependency_links.txt
+pyspots.egg-info/not-zip-safe
+pyspots.egg-info/top_level.txt
