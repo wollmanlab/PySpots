@@ -15,36 +15,29 @@ from sklearn.preprocessing import normalize
 from hybescope_config.microscope_config import *
 
 """ Order in which the barcode was imaged and with which color"""
-bitmap = [
-    ('RS0095_cy5',    'hybe1',  'FarRed',),# 'ACTCCACTACTACTCACTCT'),
-    ('RS0109_cy5',    'hybe2',  'FarRed',),# 'ACCCTCTAACTTCCATCACA'),
-    ('RS0175_cy5',    'hybe3',  'FarRed',),# 'ACCACAACCCATTCCTTTCA'),
-    ('RS0237_cy5',    'hybe4',  'FarRed',),# 'TTTCTACCACTAATCAACCC'),
-    ('RS0307_cy5',    'hybe5',  'FarRed',),# 'TATCCTTCAATCCCTCCACA'),
-    ('RS0332_cy5',    'hybe6',  'FarRed',),# 'ACATTACACCTCATTCTCCC'),
-    ('RSN9927.0_cy5', 'hybe7',  'FarRed',),# 'CAACCACTAACCTCTAACCA'),
-    ('RSN2336.0_cy5', 'hybe8',  'FarRed',),# 'CACATTCTCACCACTCACAT'),
-    ('RSN1807.0_cy5', 'hybe9',  'FarRed',),# 'ACCATCCTTAATCAACCACC'),
-    ('RS0384_cy5',    'hybe10', 'FarRed',),# 'TTCTCCCTCTATCAACTCTA'),
-    ('RS0406_cy5',    'hybe11', 'FarRed',),# 'ACCCTTACTACTACATCATC'),
-    ('RS0451_cy5',    'hybe12', 'FarRed',),# 'TCCTAACAACCAACTACTCC'),
-    ('RS0468_cy5',    'hybe13', 'FarRed',),# 'TCTATCATTACCCTCCTCCT'),
-    ('RS0548_cy5',    'hybe14', 'FarRed',),# 'TATTCACCTTACAAACCCTC'),
-    ('RS64.0_cy5',    'hybe15', 'FarRed',),# 'TCACTCAATCACCTCACTTC'),
-    ('RSN4287.0_cy5', 'hybe16', 'FarRed',),# 'CCTCACAAATTCTAACCTCC'),
-    ('RSN1252.0_cy5', 'hybe17', 'FarRed',),# 'CCAATACCTAATCCTCTCTC'),
-    ('RSN9535.0_cy5', 'hybe18', 'FarRed',),# 'CCTCCTAACATAACACCTAC'),
-    ('RS156.0_cy5',   'hybe19', 'FarRed',),# 'CCACCTTCCTACATAATACC'),
-    ('RS278.0_cy5',   'hybe20', 'FarRed',),# 'ACACTCTACAACCACTTCTC'),
-    ('RS313.0_cy5',   'hybe21', 'FarRed',),# 'AACACCACAACCTACTAACC'),
-    ('RS643.0_cy5',   'hybe22', 'FarRed',),# 'CACCACCAATCACCTTATAC'),
-    ('RS740.0_cy5',   'hybe23', 'FarRed',),# 'ACTACACATCAACCTACTCC'),
-    ('RS810.0_cy5',   'hybe24', 'FarRed',),# 'ACCTACCTTAACACACACTC'),
-]
+bitmap = [('RS0095', 'hybe1', 'FarRed'),
+         ('RS0109', 'hybe2', 'FarRed'),
+         ('RS0175', 'hybe3', 'FarRed'),
+         ('RS0237', 'hybe4', 'FarRed'),
+         ('RS0307', 'hybe5', 'FarRed'),
+         ('RS0332', 'hybe6', 'FarRed'),
+         ('RS0384', 'hybe10', 'FarRed'),
+         ('RS0406', 'hybe11', 'FarRed'),
+         ('RS0451', 'hybe12', 'FarRed'),
+         ('RS0468', 'hybe13', 'FarRed'),
+         ('RS0548', 'hybe14', 'FarRed'),
+         ('RS64.0', 'hybe15', 'FarRed'),
+         ('RS156.0', 'hybe19', 'FarRed'),
+         ('RS278.0', 'hybe20', 'FarRed'),
+         ('RS313.0', 'hybe21', 'FarRed'),
+         ('RS643.0', 'hybe22', 'FarRed'),
+         ('RS740.0', 'hybe23', 'FarRed'),
+         ('RS810.0', 'hybe24', 'FarRed')]
+
 nbits = len(bitmap)
 
 """ For Loading the Codebook"""
-codebook_path = '/bigstore/binfo/Codebooks/zebrafinch_remade_24bits.csv'
+codebook_path = '/bigstore/binfo/Codebooks/zebrafinch_remade.csv'
 codebook = pd.read_csv(codebook_path,index_col=0)
 gids = [i for i in codebook.index if not 'blank' in i]
 bids = [i for i in codebook.index if  'blank' in i]
@@ -61,9 +54,9 @@ norm_all_codeword_vectors = normalize(all_codeword_vectors)
 """ MERFISH Code Parameters"""
 parameters = {}
 """ General """
-parameters['daemon_path']= '/scratch/test_daemon_FX_24bits' #bigstore/GeneralStorage/daemon' #'/scratch/daemon/' # Where should the Daemons Look
-parameters['utilities_path']= '/scratch/test_utility_FX_24bits'#'/scratch/utilities/' # Where to save temporary files
-parameters['fishdata']='fishdata_testFX_24bits' #Directory Name for Processed Data >Bigstore>Images[Year]>User.Project>Dataset>fishdata
+parameters['daemon_path'] = '/scratch/test_daemon_FX_18bits' #bigstore/GeneralStorage/daemon' #'/scratch/daemon/' # Where should the Daemons Look
+parameters['utilities_path'] = '/scratch/test_utility_FX_18bits'#'/scratch/utilities/' # Where to save temporary files
+parameters['fishdata'] ='fishdata_testFX_18bits' #Directory Name for Processed Data >Bigstore>Images[Year]>User.Project>Dataset>fishdata
 parameters['verbose']=False # If you want print statements (Mostly for diagnostics)
 parameters['two_dimensional']=True #Work in 2 or 3 dimensions
 parameters['pixel_size'] = 0.083 #1.5 => 0.083 #1=> 0.123# size of pixel in um

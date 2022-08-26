@@ -6,53 +6,98 @@
 # This bitmap is tyically constant for most experiments
 # Might need to change this if experimental conditions are different
 import numpy as np
-# import pickle
+import pickle
 import pandas as pd
-# import os
-# from scipy.spatial import distance_matrix
+import os
+from scipy.spatial import distance_matrix
 from collections import OrderedDict
 from sklearn.preprocessing import normalize
 from hybescope_config.microscope_config import *
 
 """ Order in which the barcode was imaged and with which color"""
-bitmap = [
-    ('RS0095_cy5',    'hybe1',  'FarRed',),# 'ACTCCACTACTACTCACTCT'),
-    ('RS0109_cy5',    'hybe2',  'FarRed',),# 'ACCCTCTAACTTCCATCACA'),
-    ('RS0175_cy5',    'hybe3',  'FarRed',),# 'ACCACAACCCATTCCTTTCA'),
-    ('RS0237_cy5',    'hybe4',  'FarRed',),# 'TTTCTACCACTAATCAACCC'),
-    ('RS0307_cy5',    'hybe5',  'FarRed',),# 'TATCCTTCAATCCCTCCACA'),
-    ('RS0332_cy5',    'hybe6',  'FarRed',),# 'ACATTACACCTCATTCTCCC'),
-    ('RSN9927.0_cy5', 'hybe7',  'FarRed',),# 'CAACCACTAACCTCTAACCA'),
-    ('RSN2336.0_cy5', 'hybe8',  'FarRed',),# 'CACATTCTCACCACTCACAT'),
-    ('RSN1807.0_cy5', 'hybe9',  'FarRed',),# 'ACCATCCTTAATCAACCACC'),
-    ('RS0384_cy5',    'hybe10', 'FarRed',),# 'TTCTCCCTCTATCAACTCTA'),
-    ('RS0406_cy5',    'hybe11', 'FarRed',),# 'ACCCTTACTACTACATCATC'),
-    ('RS0451_cy5',    'hybe12', 'FarRed',),# 'TCCTAACAACCAACTACTCC'),
-    ('RS0468_cy5',    'hybe13', 'FarRed',),# 'TCTATCATTACCCTCCTCCT'),
-    ('RS0548_cy5',    'hybe14', 'FarRed',),# 'TATTCACCTTACAAACCCTC'),
-    ('RS64.0_cy5',    'hybe15', 'FarRed',),# 'TCACTCAATCACCTCACTTC'),
-    ('RSN4287.0_cy5', 'hybe16', 'FarRed',),# 'CCTCACAAATTCTAACCTCC'),
-    ('RSN1252.0_cy5', 'hybe17', 'FarRed',),# 'CCAATACCTAATCCTCTCTC'),
-    ('RSN9535.0_cy5', 'hybe18', 'FarRed',),# 'CCTCCTAACATAACACCTAC'),
-    ('RS156.0_cy5',   'hybe19', 'FarRed',),# 'CCACCTTCCTACATAATACC'),
-    ('RS278.0_cy5',   'hybe20', 'FarRed',),# 'ACACTCTACAACCACTTCTC'),
-    ('RS313.0_cy5',   'hybe21', 'FarRed',),# 'AACACCACAACCTACTAACC'),
-    ('RS643.0_cy5',   'hybe22', 'FarRed',),# 'CACCACCAATCACCTTATAC'),
-    ('RS740.0_cy5',   'hybe23', 'FarRed',),# 'ACTACACATCAACCTACTCC'),
-    ('RS810.0_cy5',   'hybe24', 'FarRed',),# 'ACCTACCTTAACACACACTC'),
-]
+bitmap = [('RS0095_cy5', 'hybe1', 'FarRed'),
+            ('RS0109_cy5', 'hybe2', 'FarRed'),
+            ('RS0175_cy5', 'hybe3', 'FarRed'),
+            ('RS0237_cy5', 'hybe4', 'FarRed'),
+            ('RS0307_cy5', 'hybe5', 'FarRed'),
+            ('RS0332_cy5', 'hybe6', 'FarRed'),
+            ('RSN9927.0_cy5', 'hybe7', 'FarRed'),
+            ('RSN2336.0_cy5', 'hybe8', 'FarRed'),
+            ('RSN1807.0_cy5', 'hybe9', 'FarRed'),
+            ('RS0384_cy5', 'hybe10', 'FarRed'),
+            ('RS0406_cy5', 'hybe11', 'FarRed'),
+            ('RS0451_cy5', 'hybe12', 'FarRed'),
+            ('RS0468_cy5', 'hybe13', 'FarRed'),
+            ('RS0548_cy5', 'hybe14', 'FarRed'),
+            ('RS64.0_cy5', 'hybe15', 'FarRed'),
+            ('RSN4287.0_cy5', 'hybe16', 'FarRed'),
+            ('RSN1252.0_cy5', 'hybe17', 'FarRed'),
+            ('RSN9535.0_cy5', 'hybe18', 'FarRed')]
+
+bitmap = [('RS0095_cy5', 'hybe1', 'FarRed'),
+            ('RS0109_cy5', 'hybe2', 'FarRed'),
+            ('RS0175_cy5', 'hybe3', 'FarRed'),
+            ('RS0237_cy5', 'hybe4', 'FarRed'),
+            ('RS0307_cy5', 'hybe5', 'FarRed'),
+            ('RS0332_cy5', 'hybe6', 'FarRed'),
+            ('RSN9927.0_cy5', 'hybe7', 'FarRed'),
+            ('RSN2336.0_cy5', 'hybe8', 'FarRed'),
+            ('RSN1807.0_cy5', 'hybe9', 'FarRed'),
+            ('RS0384_atto565', 'hybe10', 'FarRed'),
+            ('RS0406_atto565', 'hybe11', 'FarRed'),
+            ('RS0451_atto565', 'hybe12', 'FarRed'),
+            ('RS0468_atto565', 'hybe13', 'FarRed'),
+            ('RS0548_atto565', 'hybe14', 'FarRed'),
+            ('RS64.0_atto565', 'hybe15', 'FarRed'),
+            ('RSN4287.0_atto565', 'hybe16', 'FarRed'),
+            ('RSN1252.0_atto565', 'hybe17', 'FarRed'),
+            ('RSN9535.0_atto565', 'hybe18', 'FarRed')]
+
 nbits = len(bitmap)
 
 """ For Loading the Codebook"""
-codebook_path = '/bigstore/binfo/Codebooks/zebrafinch_remade_24bits.csv'
-codebook = pd.read_csv(codebook_path,index_col=0)
-gids = [i for i in codebook.index if not 'blank' in i]
-bids = [i for i in codebook.index if  'blank' in i]
-aids = [i for i in codebook.index]
-gene_codeword_vectors = np.array(codebook.loc[gids])
-blank_codeword_vectors = np.array(codebook.loc[bids])
-all_codeword_vectors = np.array(codebook.loc[aids])
+codebook_pth = '/bigstore/binfo/Codebooks/TBI_Hippocampus_Codebook.txt'
+def load_codebook(fname):
+    barcodes = []
+    with open(fname, 'r') as f:
+        for line in f.readlines():
+            bc = map(int, line.strip().split(','))
+            barcodes.append(list(bc))
+    return np.array(barcodes)
 
+""" Load Possible Barcodes"""
+base_pth = '/home/zach/PythonRepos/PySpots/hybescope_config/'
+if nbits==18:
+    possible_cwords = load_codebook(os.path.join(base_pth,'MHD4_18bit_187cwords.csv'))
+elif nbits==24:
+    possible_cwords = load_codebook(os.path.join(base_pth,'MHD4_24bit_472cwords.csv'))
+else:
+    raise NameError('Likely Bitmap is wrong')
+
+""" Load Designed Barcodes """
+codebook = pd.read_csv(codebook_pth,skiprows=3)
+codebook.columns = [i.split(' ')[-1] for i in codebook.columns]
+codebook['barcode'] = [str(i).zfill(nbits) for i in codebook['barcode']]
+
+""" Add Blank Barcodes to Codebook """
+blank_cwords = []
+blank_names = []
+for i in range(possible_cwords.shape[0]):
+    barcode = ''.join([str(b) for b in possible_cwords[i,:]])
+    if not barcode in list(codebook['barcode']):
+        blank_cwords.append(possible_cwords[i,:])
+        blank_names.append('blank'+str(len(blank_names)))
+blank_cwords = np.stack(blank_cwords)
+true_cwords = np.array([np.array([int(i) for i in codebook['barcode'].iloc[b]]) for b in range(len(codebook))])
+cwords = np.concatenate([true_cwords,blank_cwords])
+
+""" Save in useful formats"""
+gids = list(codebook['name'])
+bids = blank_names
+aids = gids+bids
+gene_codeword_vectors = true_cwords
+blank_codeword_vectors = blank_cwords
+all_codeword_vectors = cwords
 """ Normalize for Angular Comparison"""
 norm_gene_codeword_vectors = normalize(gene_codeword_vectors)
 norm_blank_codeword_vectors = normalize(blank_codeword_vectors)
@@ -61,11 +106,11 @@ norm_all_codeword_vectors = normalize(all_codeword_vectors)
 """ MERFISH Code Parameters"""
 parameters = {}
 """ General """
-parameters['daemon_path']= '/scratch/test_daemon_FX_24bits' #bigstore/GeneralStorage/daemon' #'/scratch/daemon/' # Where should the Daemons Look
-parameters['utilities_path']= '/scratch/test_utility_FX_24bits'#'/scratch/utilities/' # Where to save temporary files
-parameters['fishdata']='fishdata_testFX_24bits' #Directory Name for Processed Data >Bigstore>Images[Year]>User.Project>Dataset>fishdata
+parameters['daemon_path']= '/bigstore/GeneralStorage/daemon' #'/scratch/daemon/' # Where should the Daemons Look
+parameters['utilities_path']= '/bigstore/GeneralStorage/utilities'#'/scratch/utilities/' # Where to save temporary files
+parameters['fishdata']='fishdata_FX' #Directory Name for Processed Data >Bigstore>Images[Year]>User.Project>Dataset>fishdata
 parameters['verbose']=False # If you want print statements (Mostly for diagnostics)
-parameters['two_dimensional']=True #Work in 2 or 3 dimensions
+parameters['two_dimensional']=False #Work in 2 or 3 dimensions
 parameters['pixel_size'] = 0.083 #1.5 => 0.083 #1=> 0.123# size of pixel in um
 parameters['z_step_size'] = 0.4 # size of step in Z um
 """ Dataset """
@@ -97,7 +142,7 @@ parameters['projection_zstart']=-1 # Which Z index to start (-1 means first)
 parameters['projection_k']=1 # How many Z above and below to include (1 means 1 above and 1 below)
 parameters['projection_zskip']=2 # How many Z indexes to skip
 parameters['projection_zend']=-1 # Which Z index to stop (-1 means last)
-parameters['projection_function']='max' # Which method to use to project (typically max or mean)
+parameters['projection_function']='mean' # Which method to use to project (typically max or mean)
 parameters['dtype_rel_min']=0 # when converting dtypes this amount in percentile will be set to 0
 parameters['dtype_rel_max']=100 # when converting dtypes this amount in percentile will be set to max
 parameters['dtype']='uint16' # dtype to save in
@@ -142,15 +187,54 @@ parameters['segment_ncpu'] = 30
 parameters['match_thresh'] = -2 # how many mismatched bits to be called a barcode
 parameters['fpr_thresh'] = 0.4 # euclidean distance from barcodes to be called
 parameters['classification_overwrite'] = True
+#parameters['logistic_columns'] = ['mass', 'size', 'ecc','intensity' 'raw_mass', 'ep', 'cword_distance', 'correct_bits', 'false_positives', 'false_negatives', 'signal', 'noise', 'signal-noise', 'X']
 parameters['logistic_columns'] = ['raw_mass', 'ep','intensity', 'signal', 'noise', 'signal-noise','X']
 spot_parameters = {}
 spot_parameters['default'] = {'spot_max_distance':3,
                                        'spot_minmass':15,
                                        'spot_diameter':5,
                                           'spot_separation':3}
+spot_parameters['sham1_3_2022Jan03'] = {'spot_max_distance':3,
+                                       'spot_minmass':12,
+                                       'spot_diameter':5,
+                                          'spot_separation':3}
+spot_parameters['Sham_2_4_2022Jan21'] = {'spot_max_distance':3,
+                                       'spot_minmass':17,
+                                       'spot_diameter':5,
+                                          'spot_separation':3}
+spot_parameters['Sham_3_4_2022Jan25'] = {'spot_max_distance':3,
+                                       'spot_minmass':15,
+                                       'spot_diameter':5,
+                                          'spot_separation':3}
+spot_parameters['TBI-1-1_2021Oct20'] = {'spot_max_distance':3,
+                                       'spot_minmass':15,
+                                       'spot_diameter':5,
+                                          'spot_separation':3}
+spot_parameters['TBI_3_1_2022Jan15'] = {'spot_max_distance':3,
+                                       'spot_minmass':19,
+                                       'spot_diameter':5,
+                                          'spot_separation':3}
+spot_parameters['TBI4_1_2022Jan11'] = {'spot_max_distance':3,
+                                       'spot_minmass':15,
+                                       'spot_diameter':5,
+                                          'spot_separation':3}
 
-camera_direction_dict = {'default':[-1,-1]}
-xy_flip_dict = {'default':False}
+
+camera_direction_dict = {'default':[-1,-1],
+                        'sham1_3_2022Jan03':[-1,-1],    
+                        'Sham_2_4_2022Jan21':[-1,-1],
+                        'Sham_3_4_2022Jan25':[-1,-1],
+                        'TBI-1-1_2021Oct20':[-1,-1],
+                        'TBI_3_1_2022Jan15':[-1,-1],
+                        'TBI4_1_2022Jan11':[-1,-1]}
+xy_flip_dict = {'default':False,
+                'sham1_3_2022Jan03':True,
+                'Sham_2_4_2022Jan21':False,
+                'Sham_3_4_2022Jan25':False,
+                'TBI-1-1_2021Oct20':True,
+                'TBI_3_1_2022Jan15':False,
+                'TBI4_1_2022Jan11':True}
+
 parameters['camera_direction_dict'] = camera_direction_dict
 parameters['xy_flip_dict'] = xy_flip_dict
 parameters['spot_parameters'] = spot_parameters
