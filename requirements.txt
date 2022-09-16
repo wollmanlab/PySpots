@@ -63,7 +63,7 @@ networkx==2.6.3
 numba @ file:///tmp/build/80754af9/numba_1635174338764/work
 numexpr @ file:///tmp/build/80754af9/numexpr_1618856529730/work
 numpy @ file:///tmp/build/80754af9/numpy_and_numpy_base_1626264704411/work
-oauthlib==3.1.1
+oauthlib==3.2.1
 olefile @ file:///Users/ktietz/demo/mc3/conda-bld/olefile_1629805411829/work
 opencv-python-headless==4.5.4.60
 opt-einsum==3.3.0
