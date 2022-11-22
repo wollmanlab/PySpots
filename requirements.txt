@@ -73,7 +73,7 @@ parso==0.8.3
 patsy==0.5.2
 pexpect==4.8.0
 pickleshare==0.7.5
-Pillow==8.4.0
+Pillow==9.3.0
 PIMS @ file:///home/conda/feedstock_root/build_artifacts/pims_1592596346202/work
 prompt-toolkit==3.0.23
 protobuf==3.19.1
