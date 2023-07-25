@@ -34,6 +34,19 @@ bitmap = [('RS0095', 'hybe1', 'FarRed'),
          ('RS740.0', 'hybe23', 'FarRed'),
          ('RS810.0', 'hybe24', 'FarRed')]
 
+bitmap = [('RS0095', 'hybe1', 'FarRed'),
+         ('RS0109', 'hybe2', 'FarRed'),
+         ('RS0175', 'hybe3', 'FarRed'),
+         ('RS0237', 'hybe4', 'FarRed'),
+         ('RS0307', 'hybe5', 'FarRed'),
+         ('RS0332', 'hybe6', 'FarRed'),
+         ('RS0384', 'hybe10', 'FarRed'),
+         ('RS0406', 'hybe11', 'FarRed'),
+         ('RS0451', 'hybe12', 'FarRed'),
+         ('RS0468', 'hybe13', 'FarRed'),
+         ('RS0548', 'hybe14', 'FarRed'),
+         ('RS64.0', 'hybe15', 'FarRed')]
+
 nbits = len(bitmap)
 
 """ For Loading the Codebook"""
@@ -46,6 +59,21 @@ gene_codeword_vectors = np.array(codebook.loc[gids])
 blank_codeword_vectors = np.array(codebook.loc[bids])
 all_codeword_vectors = np.array(codebook.loc[aids])
 
+gene_codeword_vectors = gene_codeword_vectors[:,:nbits]
+blank_codeword_vectors = blank_codeword_vectors[:,:nbits]
+all_codeword_vectors = all_codeword_vectors[:,:nbits]
+
+""" Remove Genes with less than 3 positives"""
+gene_mask = gene_codeword_vectors.sum(1)>2
+blank_mask = blank_codeword_vectors.sum(1)>2
+all_mask = all_codeword_vectors.sum(1)>2
+gene_codeword_vectors = gene_codeword_vectors[gene_mask,:]
+blank_codeword_vectors = blank_codeword_vectors[blank_mask,:]
+all_codeword_vectors = all_codeword_vectors[all_mask,:]
+gids = list(np.array(gids)[gene_mask])
+bids = list(np.array(bids)[blank_mask])
+aids = list(np.array(aids)[all_mask])
+
 """ Normalize for Angular Comparison"""
 norm_gene_codeword_vectors = normalize(gene_codeword_vectors)
 norm_blank_codeword_vectors = normalize(blank_codeword_vectors)
@@ -56,7 +84,7 @@ parameters = {}
 """ General """
 parameters['daemon_path']= '/bigstore/GeneralStorage/daemon' #'/scratch/daemon/' # Where should the Daemons Look
 parameters['utilities_path']= '/bigstore/GeneralStorage/utilities'#'/scratch/utilities/' # Where to save temporary files
-parameters['fishdata']='fishdata' #Directory Name for Processed Data >Bigstore>Images[Year]>User.Project>Dataset>fishdata
+parameters['fishdata']='fishdata_2D' #Directory Name for Processed Data >Bigstore>Images[Year]>User.Project>Dataset>fishdata
 parameters['verbose']=False # If you want print statements (Mostly for diagnostics)
 parameters['two_dimensional']=True #Work in 2 or 3 dimensions
 parameters['pixel_size'] = 0.083 #1.5 => 0.083 #1=> 0.123# size of pixel in um
@@ -76,11 +104,11 @@ parameters['dbscan_eps']=3
 parameters['dbscan_min_samples']=20 # How many beads you need
 parameters['max_dist']=int(15/parameters['pixel_size'])#15 um # Max distance a bead can be to be paired
 parameters['match_threshold']=0.65 # Peak Calling threshold for beads
-parameters['ref_hybe']='hybe1' # Name of Reference Hybe
+parameters['ref_hybe']='hybe10' # Name of Reference Hybe
 parameters['registration_channel']='DeepBlue' # What channel has your fiduciary markers
 parameters['registration_method'] = 'beads' # What method of registration to use (bead or image)
-parameters['registration_image_blur_kernel'] = 2 # What size kernel to blur image with
-parameters['registration_image_background_kernel'] = 10 # What size kernel to calculte background
+parameters['registration_image_blur_kernel'] = (0.1/parameters['pixel_size']) #100 nm # What size kernel to blur image with
+parameters['registration_image_background_kernel'] = (0.5/parameters['pixel_size']) # 500nm # What size kernel to calculte background
 parameters['subpixel_method'] = 'max'
 parameters['registration_overwrite'] = False
 """ Stack """
@@ -106,7 +134,7 @@ parameters['spot_diameter'] = 5 # 250 nm
 parameters['spot_minmass'] = 15#9 # not based on size?
 parameters['spot_separation'] = 3 # 100 nm
 parameters['image_call_spots'] = False
-parameters['image_overwrite'] = True
+parameters['image_overwrite'] = False
 """ Segment """
 parameters['nucstain_channel'] = 'DeepBlue' # Which Channel is your nuclear stain in
 parameters['nucstain_acq'] = 'nucstain' # Which acquision is your nuclear signal in
@@ -129,21 +157,76 @@ parameters['segment_overwrite'] = False # Overwrite previous segmentation?
 parameters['segment_nuclear_blur'] = (25/parameters['pixel_size']) # 25 um2 sigma in pixels for background
 parameters['segment_z_step_size'] = 0.4
 parameters['segment_pixel_size'] = parameters['pixel_size']
-parameters['segment_overwrite'] = True
-parameters['segment_ncpu'] = 30
+parameters['segment_overwrite'] = False
+parameters['segment_ncpu'] = 1
 """ Classify """
+parameters['classification_method'] = 'spot'
 parameters['match_thresh'] = -2 # how many mismatched bits to be called a barcode
 parameters['fpr_thresh'] = 0.4 # euclidean distance from barcodes to be called
 parameters['classification_overwrite'] = True
-parameters['logistic_columns'] = ['raw_mass', 'ep','intensity', 'signal', 'noise', 'signal-noise','X']
+parameters['spot_percentile'] = 98
+parameters['spot_max_distance'] = 0.1
+parameters['spot_diameter'] = 5
+parameters['spot_minmass'] = 4
+parameters['spot_separation'] = 3
+parameters['classify_iterations'] = 1
+#parameters['logistic_columns'] = ['mass',
+#  'size', 'ecc','intensity' 'raw_mass', 'ep', 'cword_distance', 'correct_bits', 'false_positives', 'false_negatives', 'signal', 'noise', 'signal-noise', 'X']
+# parameters['logistic_columns'] = ['raw_mass', 'ep','intensity', 'signal', 'noise', 'signal-noise','X']
+parameters['logistic_columns'] = ['mass', 'size', 'ecc', 'signal', 'raw_mass', 'ep',
+                                 'intensity', 'zindex', 'dispersion','correct_bits', 'false_positives', 'false_negatives',
+                                 'noise', 'signal-noise', 'n_spots', 'cword_distance',
+                                 'cdist', 'X']
 spot_parameters = {}
 spot_parameters['default'] = {'spot_max_distance':3,
-                                       'spot_minmass':15,
+                                       'spot_minmass':5,
                                        'spot_diameter':5,
                                           'spot_separation':3}
+spot_parameters['A5_2022Jan18'] = {'spot_max_distance':0.1,
+                                       'spot_minmass':4,
+                                       'spot_diameter':5,
+                                          'spot_separation':3}
+# spot_parameters['sham1_3_2022Jan03'] = {'spot_max_distance':3,
+#                                        'spot_minmass':12,
+#                                        'spot_diameter':5,
+#                                           'spot_separation':3}
+# spot_parameters['Sham_2_4_2022Jan21'] = {'spot_max_distance':3,
+#                                        'spot_minmass':17,
+#                                        'spot_diameter':5,
+#                                           'spot_separation':3}
+# spot_parameters['Sham_3_4_2022Jan25'] = {'spot_max_distance':3,
+#                                        'spot_minmass':15,
+#                                        'spot_diameter':5,
+#                                           'spot_separation':3}
+# spot_parameters['TBI-1-1_2021Oct20'] = {'spot_max_distance':3,
+#                                        'spot_minmass':15,
+#                                        'spot_diameter':5,
+#                                           'spot_separation':3}
+# spot_parameters['TBI_3_1_2022Jan15'] = {'spot_max_distance':3,
+#                                        'spot_minmass':19,
+#                                        'spot_diameter':5,
+#                                           'spot_separation':3}
+# spot_parameters['TBI4_1_2022Jan11'] = {'spot_max_distance':3,
+#                                        'spot_minmass':15,
+#                                        'spot_diameter':5,
+#                                           'spot_separation':3}
 
-camera_direction_dict = {'default':[-1,-1]}
-xy_flip_dict = {'default':False}
+
+camera_direction_dict = {'default':[-1,-1],
+                        'sham1_3_2022Jan03':[-1,-1],    
+                        'Sham_2_4_2022Jan21':[-1,-1],
+                        'Sham_3_4_2022Jan25':[-1,-1],
+                        'TBI-1-1_2021Oct20':[-1,-1],
+                        'TBI_3_1_2022Jan15':[-1,-1],
+                        'TBI4_1_2022Jan11':[-1,-1]}
+xy_flip_dict = {'default':False,
+                'sham1_3_2022Jan03':True,
+                'Sham_2_4_2022Jan21':False,
+                'Sham_3_4_2022Jan25':False,
+                'TBI-1-1_2021Oct20':True,
+                'TBI_3_1_2022Jan15':False,
+                'TBI4_1_2022Jan11':True}
+
 parameters['camera_direction_dict'] = camera_direction_dict
 parameters['xy_flip_dict'] = xy_flip_dict
 parameters['spot_parameters'] = spot_parameters
