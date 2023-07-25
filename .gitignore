@@ -2,3 +2,4 @@
 *.pyc
 analysis_scripts/
 depricated/
+pyspots.egg-info/
