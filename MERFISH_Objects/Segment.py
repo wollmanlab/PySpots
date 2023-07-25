@@ -143,6 +143,7 @@ class Segment_Class(object):
                 self.generate_stk()
             self.initalize_cellpose()
             self.segment()
+            del self.model
             if not self.two_dimensional:
                 self.merge_labels_overlap('f')
                 self.merge_labels_overlap('r')
@@ -231,7 +232,7 @@ class Segment_Class(object):
                 nuclei_mask = self.fishdata.load_data('nuclei_mask',
                                                   dataset=self.dataset,
                                                   posname=self.posname,
-                                                  zindex=self.zindexes[0])
+                                                  zindex=self.zindexes[0]) # CHECK [0]
         except:
             nuclei_mask = None
         if not isinstance(nuclei_mask,type(None)):
@@ -327,7 +328,7 @@ class Segment_Class(object):
             Input.append(data)  
         pfunc = partial(process_image,parameters=self.parameters)
         pool = multiprocessing.Pool(self.parameters['segment_ncpu'])
-        sys.stdout.flush()
+        #sys.stdout.flush()
         results = pool.imap(pfunc, Input)
         if self.verbose:
             iterable = tqdm(results,total=len(Input),desc='Generating Nuclear Stack')
@@ -341,7 +342,7 @@ class Segment_Class(object):
                 stk = np.empty([self.img_shape[0],self.img_shape[1],len(self.pos_metadata)])
             stk[:,:,img_idx]=img
         pool.close()
-        sys.stdout.flush()
+        #sys.stdout.flush()
         if self.two_dimensional:
             image = self.project_image(stk)
             i2 = interpolate.interp2d(np.array(range(image.shape[1]))+self.translation_x, 
@@ -402,9 +403,13 @@ class Segment_Class(object):
     def initalize_cellpose(self):
         if self.verbose:
             i = [i for i in tqdm([],desc='Initialize Cellpose')]
+        #sys.stdout.flush()
+        """" CELLPOSE CANT HANDLE SATURATED IMAGES WILL STALL WITHOUT ERROR"""
         self.model = models.Cellpose(model_type=self.cellpose_inputs['model_type'],
                                      gpu=self.cellpose_inputs['gpu'])#,
 #                                      batch_size=self.cellpose_inputs['batch_size'])
+        #sys.stdout.flush()
+
     def segment(self):
         if self.verbose:
             iterable = tqdm(self.nuclear_images,desc='Segmenting Nuclei Images')
@@ -417,6 +422,7 @@ class Segment_Class(object):
             image = self.normalize_image(image)
             if self.downsample!=1:
                 image = np.array(Image.fromarray(image).resize((int(self.img_shape[1]*self.downsample),int(self.img_shape[0]*self.downsample)), Image.BICUBIC))
+            #sys.stdout.flush()
             raw_mask_image,flows,styles,diams = self.model.eval(image,
                                               diameter=self.cellpose_inputs['diameter']*self.downsample,
                                               channels=self.cellpose_inputs['channels'],
@@ -427,6 +433,7 @@ class Segment_Class(object):
             self.raw_mask_images.append(raw_mask_image)
         self.mask_images = self.raw_mask_images
         self.mask_stack = self.images_to_stack(self.mask_images)
+        #sys.stdout.flush()
     
     def stack_to_images(self,stack):
         return [stack[:,:,z] for z in range(stack.shape[2])]
