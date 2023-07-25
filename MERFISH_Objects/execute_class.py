@@ -4,8 +4,7 @@ from tqdm import tqdm
 """ Function to rerun class """
 from MERFISH_Objects.Daemons import *
 import parser
-
-
+import torch
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -94,6 +93,9 @@ def generate_class(data):
 def manual_class(data):
     data_object = generate_class(data)
     data_object.main()
+    del data_object
+    torch.cuda.empty_cache()
+    # sys.stdout.flush()
     return data
     # try:
     #     data_object.main()
@@ -154,9 +156,12 @@ if __name__ == '__main__':
                 config.parameters['projection_zstart'] = 0+config.parameters['projection_k']
             if config.parameters['projection_zend'] == -1:
                 config.parameters['projection_zend'] = np.max(zindexes)-config.parameters['projection_k']
-            zindexes = np.array(range(config.parameters['projection_zstart'],
-                                      config.parameters['projection_zend'],
-                                      config.parameters['projection_zskip']))
+            if config.parameters['two_dimensional']:
+                zindexes = np.array([0])
+            else:
+                zindexes = np.array(range(config.parameters['projection_zstart'],
+                                          config.parameters['projection_zend'],
+                                          config.parameters['projection_zskip']))
         for posname in posnames:
             if Type in ['position','segmentation']:
                 data = {'metadata_path':metadata_path,
@@ -210,8 +215,12 @@ if __name__ == '__main__':
                             Input.append(data)
     if Type=='registration':
         """ Required to find tforms for hybes that were processed before their references"""
+        np.random.shuffle(temp_input1)
+        np.random.shuffle(temp_input2)
         Input.extend(temp_input1)
         Input.extend(temp_input2)
+    else:
+        np.random.shuffle(Input)
     print(len(Input))
     if ncpu==1:
         iterable = tqdm(Input,total=len(Input),desc=str(datetime.now().strftime("%H:%M:%S"))+' '+dataset,position=0)
