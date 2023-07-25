@@ -80,7 +80,7 @@ class Dataset_Class(object):
         if self.verbose:
             self.update_user('Checking Imaging')
         # self.metadata = Metadata(self.metadata_path)
-        self.acqs = [i for i in os.listdir(self.metadata_path) if 'hybe' in i]
+        self.acqs = [i for i in os.listdir(self.metadata_path) if 'hybe' in i.lower()]
         self.metadata = Metadata(os.path.join(self.metadata_path,self.acqs[0]))
         self.posnames = self.metadata.image_table[self.metadata.image_table.acq.isin(self.acqs)].Position.unique()
         
@@ -247,6 +247,40 @@ class Dataset_Class(object):
         self.transcripts = pd.concat(transcripts_full,ignore_index=True)
         self.cell_metadata = pd.concat(cell_metadata_full,ignore_index=True)
 
+    def predict_false(self):
+        self.update_user('Predicting False Transcripts')
+        self.transcripts['X'] = [str('blank' not in gene) for gene in self.transcripts['gene']]
+        columns = ['dist','signal','noise','signal-noise','norm_signal','norm_noise','norm_signal-norm_noise','n_pixels','X']
+        training_data = self.transcripts[(self.transcripts.n_pixels>1)&(self.transcripts['dist']<0.5)].copy()
+        training_data = training_data[training_data['gene']!='Malat1'] # Better Balance Genes here ### HARDCODED
+        application_data = self.transcripts.copy()
+        from sklearn.model_selection import train_test_split
+        data = training_data[columns]
+        data_true = data.loc[data[data['X']=='True'].index]
+        data_false = data.loc[data[data['X']=='False'].index]
+        """ downsample to same size """
+        s = np.min([data_true.shape[0],data_false.shape[0]])
+        data_true_down = data_true.loc[np.random.choice(data_true.index,s,replace=False)]
+        data_false_down = data_false.loc[np.random.choice(data_false.index,s,replace=False)]
+        data_down = pd.concat([data_true_down,data_false_down])
+        X_train, X_test, y_train, y_test = train_test_split(data_down.drop('X',axis=1),data_down['X'], test_size=0.30,random_state=101)
+        from sklearn import preprocessing
+        self.scaler = preprocessing.StandardScaler().fit(X_train)
+        X_train_scaled = self.scaler.transform(X_train)
+        X_test_scaled = self.scaler.transform(X_test)
+        from sklearn.neural_network import MLPClassifier
+        self.model  = MLPClassifier(alpha=1, max_iter=1000)
+        self.model.fit(X_train_scaled,y_train)
+        predictions = self.model.predict(X_test_scaled)
+        from sklearn.metrics import classification_report
+        if self.verbose:
+            print(classification_report(y_test,predictions))
+        data = application_data[[i for i in columns if not 'X'==i]]
+        X = self.scaler.transform(data)
+        self.transcripts['predicted_X'] = self.model.predict(X)
+        self.transcripts['probabilities'] = self.model.predict_proba(X)[:,1] # make sure it is always this orientation
+
+
     def train_logistic(self):
         """ Train Logistic Regressor to find False Positives"""
         if self.verbose:
@@ -337,6 +371,9 @@ class Dataset_Class(object):
         common_cells = set(list(self.counts.index)).intersection(list(self.cell_metadata.index))
         self.counts = self.counts.loc[common_cells]
         self.cell_metadata = self.cell_metadata.loc[common_cells]
+        self.add_stage_coordinates()
+
+    def add_stage_coordinates(self):
         """ Add Stage Coordinates"""
         pos_locations = {pos:self.metadata.image_table[self.metadata.image_table.Position==pos].XY.iloc[0] for pos in self.posnames}
         self.cell_metadata['posname_stage_x'] = [pos_locations[pos][0] for pos in self.cell_metadata.posname]
@@ -355,14 +392,14 @@ class Dataset_Class(object):
         else:
             self.parameters['xy_flip'] = self.parameters['xy_flip_dict']['default']
         if self.parameters['xy_flip']:
-            self.cell_metadata['stage_x'] = np.array(self.cell_metadata['posname_stage_x']) + self.parameters['camera_direction'][0]*pixel_size*np.array(self.cell_metadata['x_pixel'])
-            self.cell_metadata['stage_y'] = np.array(self.cell_metadata['posname_stage_y']) + self.parameters['camera_direction'][1]*pixel_size*np.array(self.cell_metadata['y_pixel'])
+            self.cell_metadata['stage_x'] = np.array(self.cell_metadata['posname_stage_x']) + self.parameters['camera_direction'][0]*pixel_size*np.array(self.cell_metadata['pixel_x'])
+            self.cell_metadata['stage_y'] = np.array(self.cell_metadata['posname_stage_y']) + self.parameters['camera_direction'][1]*pixel_size*np.array(self.cell_metadata['pixel_y'])
 
             self.transcripts['stage_x'] = np.array(self.transcripts['posname_stage_x']) + self.parameters['camera_direction'][0]*pixel_size*np.array(self.transcripts['y'])
             self.transcripts['stage_y'] = np.array(self.transcripts['posname_stage_y']) + self.parameters['camera_direction'][1]*pixel_size*np.array(self.transcripts['x'])
         else:
-            self.cell_metadata['stage_x'] = np.array(self.cell_metadata['posname_stage_x']) + self.parameters['camera_direction'][0]*pixel_size*np.array(self.cell_metadata['y_pixel'])
-            self.cell_metadata['stage_y'] = np.array(self.cell_metadata['posname_stage_y']) + self.parameters['camera_direction'][1]*pixel_size*np.array(self.cell_metadata['x_pixel'])
+            self.cell_metadata['stage_x'] = np.array(self.cell_metadata['posname_stage_x']) + self.parameters['camera_direction'][0]*pixel_size*np.array(self.cell_metadata['pixel_x'])
+            self.cell_metadata['stage_y'] = np.array(self.cell_metadata['posname_stage_y']) + self.parameters['camera_direction'][1]*pixel_size*np.array(self.cell_metadata['pixel_y'])
 
             self.transcripts['stage_x'] = np.array(self.transcripts['posname_stage_x']) + self.parameters['camera_direction'][0]*pixel_size*np.array(self.transcripts['x'])
             self.transcripts['stage_y'] = np.array(self.transcripts['posname_stage_y']) + self.parameters['camera_direction'][1]*pixel_size*np.array(self.transcripts['y'])
@@ -451,3 +488,12 @@ class Dataset_Class(object):
             """ Maybe add a blur? """
             """ Save to Utilities """
             self.utilities.save_data(out,Dataset=self.dataset,Hybe=hybe,Channel=channel,Zindex=zindex,Type='ZScore')
+
+    def check_false_positive_rate(self,transcripts):
+        blank_indexes = np.array([i for i,gene in enumerate(np.array(self.merfish_config.aids)) if 'lank' in gene])
+        correction = np.array(self.merfish_config.aids).shape[0]/blank_indexes.shape[0]
+        n_false = np.sum(np.isin(transcripts.cword_idx,blank_indexes))
+        fpr = correction*n_false/transcripts.shape[0]
+        self.update_user('False Positive Rate: '+str(int(10000*fpr)/(10000/100))+'%')
+        self.update_user(str(n_false) + ' False Positives')
+        self.update_user(str(transcripts.shape[0]) + ' All Positives')
