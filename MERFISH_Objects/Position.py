@@ -10,7 +10,6 @@ import time
 import os
 import numpy as np
 from metadata import Metadata
-from fish_results import HybeData
 from datetime import datetime
 
 class Position_Class(object):
