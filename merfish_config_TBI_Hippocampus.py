@@ -53,25 +53,25 @@ bitmap = [('RS0095_cy5', 'hybe1', 'FarRed'),
             ('RSN1252.0_atto565', 'hybe17', 'FarRed'),
             ('RSN9535.0_atto565', 'hybe18', 'FarRed')]
 
-# FOr only 1 experiment 2 and 3 were flipped 2023jul10 (maybe 4 and 5 too)
-bitmap = [('RS0095_cy5', 'hybe1', 'FarRed'),
-            ('RS0109_cy5', 'hybe3', 'FarRed'),
-            ('RS0175_cy5', 'hybe2', 'FarRed'),
-            ('RS0237_cy5', 'hybe4', 'FarRed'),
-            ('RS0307_cy5', 'hybe5', 'FarRed'),
-            ('RS0332_cy5', 'hybe6', 'FarRed'),
-            ('RSN9927.0_cy5', 'hybe7', 'FarRed'),
-            ('RSN2336.0_cy5', 'hybe8', 'FarRed'),
-            ('RSN1807.0_cy5', 'hybe9', 'FarRed'),
-            ('RS0384_atto565', 'hybe10', 'FarRed'),
-            ('RS0406_atto565', 'hybe11', 'FarRed'),
-            ('RS0451_atto565', 'hybe12', 'FarRed'),
-            ('RS0468_atto565', 'hybe13', 'FarRed'),
-            ('RS0548_atto565', 'hybe14', 'FarRed'),
-            ('RS64.0_atto565', 'hybe15', 'FarRed'),
-            ('RSN4287.0_atto565', 'hybe16', 'FarRed'),
-            ('RSN1252.0_atto565', 'hybe17', 'FarRed'),
-            ('RSN9535.0_atto565', 'hybe18', 'FarRed')]
+# # FOr only 1 experiment 2 and 3 were flipped 2023jul10 (maybe 4 and 5 too)
+# bitmap = [('RS0095_cy5', 'hybe1', 'FarRed'),
+#             ('RS0109_cy5', 'hybe3', 'FarRed'),
+#             ('RS0175_cy5', 'hybe2', 'FarRed'),
+#             ('RS0237_cy5', 'hybe4', 'FarRed'),
+#             ('RS0307_cy5', 'hybe5', 'FarRed'),
+#             ('RS0332_cy5', 'hybe6', 'FarRed'),
+#             ('RSN9927.0_cy5', 'hybe7', 'FarRed'),
+#             ('RSN2336.0_cy5', 'hybe8', 'FarRed'),
+#             ('RSN1807.0_cy5', 'hybe9', 'FarRed'),
+#             ('RS0384_atto565', 'hybe10', 'FarRed'),
+#             ('RS0406_atto565', 'hybe11', 'FarRed'),
+#             ('RS0451_atto565', 'hybe12', 'FarRed'),
+#             ('RS0468_atto565', 'hybe13', 'FarRed'),
+#             ('RS0548_atto565', 'hybe14', 'FarRed'),
+#             ('RS64.0_atto565', 'hybe15', 'FarRed'),
+#             ('RSN4287.0_atto565', 'hybe16', 'FarRed'),
+#             ('RSN1252.0_atto565', 'hybe17', 'FarRed'),
+#             ('RSN9535.0_atto565', 'hybe18', 'FarRed')]
 
 nbits = len(bitmap)
 
