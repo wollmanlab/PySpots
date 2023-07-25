@@ -7,7 +7,6 @@ from tqdm import tqdm
 import importlib
 from metadata import Metadata
 from MERFISH_Objects.Utilities import *
-from fish_results import HybeData
 from MERFISH_Objects.FISHData import *
 from flowdec import data as fd_data
 from flowdec import restoration as fd_restoration
