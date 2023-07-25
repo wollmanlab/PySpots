@@ -12,12 +12,10 @@ import sys
 import cv2
 from tqdm import tqdm
 from skimage import io
-from fish_results import HybeData
 from scipy.ndimage.morphology import distance_transform_edt as dte
 # from skimage import morphology
 from skimage.segmentation import watershed
 import matplotlib.pyplot as plt
-from fish_helpers import colorize_segmented_image
 from skimage import filters
 from skimage import morphology
 from scipy import ndimage
@@ -33,7 +31,6 @@ from MERFISH_Objects.FISHData import *
 from MERFISH_Objects.Utilities import *
 from metadata import Metadata
 import os
-from fish_helpers import *
 def process_image(data,parameters):
     """External Function for Segmentation Class to Multiprocess Image Processing
 
@@ -589,8 +586,6 @@ class Segment_Class(object):
         self.completed = True
             
             
-    def view_mask(self,zindex,nuclei=True):
-        Display(colorize_segmented_image(self.mask_stack[:,:,zindex]),rel_min=0,rel_max=100)
         
     def view_nucstain(self,zindex='mean',nuclei=True):
         if isinstance(zindex,str):
