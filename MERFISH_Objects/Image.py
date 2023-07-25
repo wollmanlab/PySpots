@@ -47,7 +47,7 @@ class Image_Class(object):
         self.zindex = int(zindex)
         self.verbose = verbose
         
-        self.acq = [i for i in os.listdir(self.metadata_path) if self.hybe+'_' in i][-1]
+        self.acq = [i for i in os.listdir(self.metadata_path) if self.hybe+'_' in i.lower()][-1]
         
         self.cword_config = cword_config
         self.merfish_config = importlib.import_module(self.cword_config)
@@ -233,7 +233,7 @@ class Image_Class(object):
             else:
                 self.translation_x = self.translation['x']
                 self.translation_y = self.translation['y']
-                self.translation_z = 0#int(round(self.translation['z']))
+                self.translation_z = int(round(self.translation['z']))
             
                 """ Calculate Zindexes """
                 self.k = self.parameters['projection_k']
@@ -268,11 +268,13 @@ class Image_Class(object):
                         self.update_user('Using min of image')
                     try:
                         self.sub_stk = self.metadata.stkread(Position=self.posname,hybe=self.hybe,Channel=self.channel,verbose=self.verbose).astype(self.dtype)
-                        self.sub_stk = np.min(self.sub_stk,axis=2)
+                        self.sub_stk = np.min(self.sub_stk,axis=2)[:,:,None]
                     except:
                         print('Likely this channel wasnt imaged')
                         print(self.posname,self.hybe,self.channel)
                         self.proceed = False
+                if len(self.sub_stk.shape)==2:
+                    self.sub_stk = self.sub_stk[:,:,None]
                 self.len_y,self.len_x,self.len_z = self.sub_stk.shape
 
     def project(self):
@@ -420,13 +422,17 @@ class Image_Class(object):
         zscore = self.img.copy()
         zscore = zscore-np.percentile(zscore.ravel(),25)
         zscore = zscore/np.percentile(zscore.ravel(),75)
-        zscore[zscore<0] = 0
+        # zscore[zscore<4] = 0
         
         """ Detect Spots"""
         self.spots = tp.locate(zscore,
                                self.parameters['spot_diameter'],
                                minmass=self.parameters['spot_minmass'],
-                               separation=self.parameters['spot_separation']) 
+                               separation=self.parameters['spot_separation'])
+        # self.spots = tp.locate(zscore,
+        #                        self.parameters['spot_diameter'],
+        #                        percentile=self.parameters['spot_minmass'],
+        #                        separation=self.parameters['spot_separation']) 
         
         """ UPDATE CHECK IF THERE ARE NO SPOTS AND ALERT USER """
         if len(self.spots)==0:
