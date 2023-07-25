@@ -18,7 +18,6 @@ from skimage.feature import match_template, peak_local_max
 import importlib
 from MERFISH_Objects.Utilities import *
 from MERFISH_Objects.FISHData import *
-from fish_results import HybeData
 from datetime import datetime
 
 from scipy.ndimage import median_filter,gaussian_filter
