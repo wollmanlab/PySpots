@@ -92,11 +92,11 @@ norm_all_codeword_vectors = normalize(all_codeword_vectors)
 """ MERFISH Code Parameters"""
 parameters = {}
 """ General """
-parameters['daemon_path']='/scratch/daemon/' # Where should the Daemons Look
-parameters['utilities_path']='/scratch/utilities/' # Where to save temporary files
-parameters['fishdata']='fishdata' #Directory Name for Processed Data >Bigstore>Images[Year]>User.Project>Dataset>fishdata
+parameters['daemon_path']= '/bigstore/GeneralStorage/daemon' #'/scratch/daemon/' # Where should the Daemons Look
+parameters['utilities_path']= '/bigstore/GeneralStorage/utilities'#'/scratch/utilities/' # Where to save temporary files
+parameters['fishdata']='fishdata_2D' #Directory Name for Processed Data >Bigstore>Images[Year]>User.Project>Dataset>fishdata
 parameters['verbose']=False # If you want print statements (Mostly for diagnostics)
-parameters['two_dimensional']=False #Work in 2 or 3 dimensions
+parameters['two_dimensional']=True #Work in 2 or 3 dimensions
 parameters['pixel_size'] = 0.083 #1.5 => 0.083 #1=> 0.123# size of pixel in um
 parameters['z_step_size'] = 0.4 # size of step in Z um
 """ Dataset """
@@ -114,11 +114,11 @@ parameters['dbscan_eps']=3
 parameters['dbscan_min_samples']=20 # How many beads you need
 parameters['max_dist']=int(15/parameters['pixel_size'])#15 um # Max distance a bead can be to be paired
 parameters['match_threshold']=0.65 # Peak Calling threshold for beads
-parameters['ref_hybe']='hybe1' # Name of Reference Hybe
+parameters['ref_hybe']='hybe10' # Name of Reference Hybe
 parameters['registration_channel']='DeepBlue' # What channel has your fiduciary markers
 parameters['registration_method'] = 'beads' # What method of registration to use (bead or image)
-parameters['registration_image_blur_kernel'] = 2 # What size kernel to blur image with
-parameters['registration_image_background_kernel'] = 10 # What size kernel to calculte background
+parameters['registration_image_blur_kernel'] = (0.1/parameters['pixel_size']) #100 nm # What size kernel to blur image with
+parameters['registration_image_background_kernel'] = (0.5/parameters['pixel_size']) # 500nm # What size kernel to calculte background
 parameters['subpixel_method'] = 'max'
 parameters['registration_overwrite'] = False
 """ Stack """
@@ -128,7 +128,7 @@ parameters['projection_zstart']=-1 # Which Z index to start (-1 means first)
 parameters['projection_k']=1 # How many Z above and below to include (1 means 1 above and 1 below)
 parameters['projection_zskip']=2 # How many Z indexes to skip
 parameters['projection_zend']=-1 # Which Z index to stop (-1 means last)
-parameters['projection_function']='mean' # Which method to use to project (typically max or mean)
+parameters['projection_function']='max' # Which method to use to project (typically max or mean)
 parameters['dtype_rel_min']=0 # when converting dtypes this amount in percentile will be set to 0
 parameters['dtype_rel_max']=100 # when converting dtypes this amount in percentile will be set to max
 parameters['dtype']='uint16' # dtype to save in
@@ -136,15 +136,15 @@ parameters['background_kernel']=(0.2/parameters['pixel_size']) #200 nm size of k
 parameters['blur_kernel']=(0.05/parameters['pixel_size'])#50nm amount to blur your image to smooth out noise
 parameters['background_method']='gaussian' # method to calculate background
 parameters['blur_method']='gaussian' # method to smooth image
-parameters['deconvolution_niterations']=10 # How many rounds of deconvolution to perform
+parameters['deconvolution_niterations']=0 # How many rounds of deconvolution to perform
 parameters['deconvolution_batches']=10 # how many batches to break up the computation into
 parameters['deconvolution_gpu']=False # do you want to use the gpu
 parameters['gain'] = 10 # gain for saving Images to use more dynamic range 
 parameters['spot_diameter'] = 5 # 250 nm
-parameters['spot_minmass'] = 9 # not based on size?
+parameters['spot_minmass'] = 15#9 # not based on size?
 parameters['spot_separation'] = 3 # 100 nm
 parameters['image_call_spots'] = False
-parameters['image_overwrite'] = True
+parameters['image_overwrite'] = False
 """ Segment """
 parameters['nucstain_channel'] = 'DeepBlue' # Which Channel is your nuclear stain in
 parameters['nucstain_acq'] = 'nucstain' # Which acquision is your nuclear signal in
@@ -167,8 +167,29 @@ parameters['segment_overwrite'] = False # Overwrite previous segmentation?
 parameters['segment_nuclear_blur'] = (25/parameters['pixel_size']) # 25 um2 sigma in pixels for background
 parameters['segment_z_step_size'] = 0.4
 parameters['segment_pixel_size'] = parameters['pixel_size']
-parameters['segment_overwrite'] = False
+parameters['segment_ncpu'] = 30
 """ Classify """
+parameters['classification_method'] = 'pixel'
 parameters['match_thresh'] = -2 # how many mismatched bits to be called a barcode
 parameters['fpr_thresh'] = 0.4 # euclidean distance from barcodes to be called
 parameters['classification_overwrite'] = True
+parameters['spot_percentile'] = 98
+parameters['spot_max_distance'] = 0.1
+parameters['spot_diameter'] = 5
+parameters['spot_minmass'] = 4
+parameters['spot_separation'] = 3
+parameters['classify_iterations'] = 1
+#parameters['logistic_columns'] = ['mass', 'size', 'ecc','intensity' 'raw_mass', 'ep', 'cword_distance', 'correct_bits', 'false_positives', 'false_negatives', 'signal', 'noise', 'signal-noise', 'X']
+parameters['logistic_columns'] = ['raw_mass', 'ep','intensity', 'signal', 'noise', 'signal-noise','X']
+spot_parameters = {}
+spot_parameters['default'] = {'spot_max_distance':3,
+                                       'spot_minmass':5,
+                                       'spot_diameter':5,
+                                          'spot_separation':3}
+
+camera_direction_dict = {'default':[-1,-1]}
+xy_flip_dict = {'default':False}
+
+parameters['camera_direction_dict'] = camera_direction_dict
+parameters['xy_flip_dict'] = xy_flip_dict
+parameters['spot_parameters'] = spot_parameters
