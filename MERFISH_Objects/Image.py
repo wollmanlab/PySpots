@@ -219,6 +219,7 @@ class Image_Class(object):
             if self.verbose:
                 self.update_user('Loading Metadata')
             self.metadata = Metadata(os.path.join(self.metadata_path,self.acq))
+            self.imaged_zindexes = self.metadata.image_table.Zindex.unique()
             
             """ Load Transformations """
             if self.verbose:
@@ -237,44 +238,52 @@ class Image_Class(object):
                 """ Calculate Zindexes """
                 self.k = self.parameters['projection_k']
                 if self.two_dimensional:
-                    zindexes = [0]
+                    self.zindexes = [0]
                 else:
-                    zindexes = list(range(self.zindex-self.k+self.translation_z,self.zindex+self.k+self.translation_z+1))
-                # Might be issues if the z transformation is too large
-
-                """ Loading Images """
-                if self.verbose:
-                    self.update_user('Loading Sub Stack')
-                try:
-                    if self.two_dimensional:
-                        """ Use all zindexes"""
-                        self.sub_stk = self.metadata.stkread(Position=self.posname,
-                                                             Channel=self.channel,
-                                                             verbose=self.verbose).astype(self.dtype)
-                    else:
-                        """ Use some zindexes"""
-                        self.sub_stk = self.metadata.stkread(Position=self.posname,
-                                                             Channel=self.channel,
-                                                             Zindex=zindexes,
-                                                             verbose=self.verbose).astype(self.dtype)
-
-                except:
-                    # Translation in z too large for this z index
-                    # Just use an average image for this position
-                    # Zeros may be an issue here
-                    """ use the minimum of all zindexes"""
-                    if self.verbose:
-                        self.update_user('Using min of image')
-                    try:
-                        self.sub_stk = self.metadata.stkread(Position=self.posname,hybe=self.hybe,Channel=self.channel,verbose=self.verbose).astype(self.dtype)
-                        self.sub_stk = np.min(self.sub_stk,axis=2)[:,:,None]
-                    except:
-                        print('Likely this channel wasnt imaged')
-                        print(self.posname,self.hybe,self.channel)
+                    self.zindexes = np.array(list(range(self.zindex-self.k+self.translation_z,self.zindex+self.k+self.translation_z+1)))
+                    self.zindexes = list(self.zindexes[np.isin(self.zindexes,self.imaged_zindexes)])
+                    if len(self.zindexes)==0:
                         self.proceed = False
-                if len(self.sub_stk.shape)==2:
-                    self.sub_stk = self.sub_stk[:,:,None]
-                self.len_y,self.len_x,self.len_z = self.sub_stk.shape
+                        print('No Zindexes')
+                # Might be issues if the z transformation is too large
+                if self.proceed:
+                    """ Loading Images """
+                    if self.verbose:
+                        self.update_user('Loading Sub Stack')
+                    try:
+                        if self.two_dimensional:
+                            """ Use all zindexes"""
+                            self.sub_stk = self.metadata.stkread(Position=self.posname,
+                                                                Channel=self.channel,
+                                                                verbose=self.verbose).astype(self.dtype)
+                        else:
+                            """ Use some zindexes"""
+                            self.sub_stk = []
+                            for z in self.zindexes:
+                                self.sub_stk.append(self.metadata.stkread(Position=self.posname,
+                                                                Channel=self.channel,
+                                                                Zindex=z,
+                                                                verbose=self.verbose).astype(self.dtype).max(2))
+                            self.sub_stk = np.dstack(self.sub_stk)
+
+                    except Exception as e:
+                        print(e)
+                        # Translation in z too large for this z index
+                        # Just use an average image for this position
+                        # Zeros may be an issue here
+                        """ use the minimum of all zindexes"""
+                        if self.verbose:
+                            self.update_user('Using min of image')
+                        try:
+                            self.sub_stk = self.metadata.stkread(Position=self.posname,hybe=self.hybe,Channel=self.channel,verbose=self.verbose).astype(self.dtype)
+                            self.sub_stk = np.min(self.sub_stk,axis=2)[:,:,None]
+                        except:
+                            print('Likely this channel wasnt imaged')
+                            print(self.posname,self.hybe,self.channel)
+                            self.proceed = False
+                    if len(self.sub_stk.shape)==2:
+                        self.sub_stk = self.sub_stk[:,:,None]
+                    self.len_y,self.len_x,self.len_z = self.sub_stk.shape
 
     def project(self):
         """ Wrapper """
