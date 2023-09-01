@@ -1,4 +1,3 @@
-from fish_helpers import *
 from MERFISH_Objects.FISHData import *
 from tqdm import tqdm
 """ Function to rerun class """
