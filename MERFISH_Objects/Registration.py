@@ -19,6 +19,8 @@ import importlib
 from MERFISH_Objects.Utilities import *
 from MERFISH_Objects.FISHData import *
 from datetime import datetime
+from scipy.spatial import cKDTree
+from MERFISH_Objects.Classify import MNN_Agglomerative    
 
 from scipy.ndimage import median_filter,gaussian_filter
 from skimage.registration import phase_cross_correlation
@@ -42,6 +44,7 @@ class Registration_Class(object):
             cword_config (str): Name of Config Module
             verbose (bool, optional): _description_. Defaults to False.
         """
+        self.diagnostics = False
         self.metadata_path = metadata_path
         self.dataset = dataset
         self.posname = posname
@@ -93,9 +96,10 @@ class Registration_Class(object):
     
     
     def update_user(self,message):
-        """ For User Display"""
-        i = [i for i in tqdm([],desc=str(datetime.now().strftime("%H:%M:%S"))+' '+str(message))]
-    
+        if self.verbose:
+            """ For User Display"""
+            i = [i for i in tqdm([],desc=str(datetime.now().strftime("%H:%M:%S"))+' '+str(message))]
+        
     def check_flags(self):
         """ Check flags to ensure this code should be executed"""
         flag = self.utilities.load_data(Dataset=self.dataset,
@@ -224,8 +228,7 @@ class Registration_Class(object):
                                      Channel=self.channel,
                                      Type='flag')
         else:
-            if self.verbose:
-                self.update_user('Registering Image')
+            self.update_user('Registering Image')
             self.translation_z = 0
             self.residual = 0
             self.nbeads = 0
@@ -447,6 +450,7 @@ class Registration_Class(object):
                                     separation=5) # Move from hard code
             self.beads = [(row.z,row.y,row.x) for idx,row in self.features.iterrows()]
 
+
         
         
         # subpixel_beads = []
@@ -636,8 +640,160 @@ class Registration_Class(object):
             self.reg_proceed = True
         else:
             self.reg_proceed = False
-            
+
     def calculate_transformation(self):
+        self.update_user('Loading Reference Beads')
+        ref_beads = self.fishdata.load_data('beads',dataset=self.dataset,posname=self.posname,hybe=self.merfish_config.parameters['ref_hybe'])
+        self.ref_beads = ref_beads
+
+        self.update_user('Loading Self Beads')
+        dest_beads = self.fishdata.load_data('beads',dataset=self.dataset,posname=self.posname,hybe=self.hybe)
+        self.dest_beads = dest_beads
+
+        if self.diagnostics:
+            import matplotlib.pyplot as plt
+            plt.figure(figsize=[25,25])
+            plt.title('Before Bead Filtering')
+            plt.scatter(ref_beads[:,0],ref_beads[:,1],s=75,facecolors='none',edgecolors='r')
+            plt.scatter(dest_beads[:,0],dest_beads[:,1],s=75,facecolors='none',edgecolors='b')
+            plt.show()
+
+        # Remove Beads that are too close to other beads
+        X = ref_beads
+        Xindex = cKDTree(X)
+        X_dists, X_idx = Xindex.query(X, k=2)
+        ref_beads = ref_beads[X_dists[:,1]>self.merfish_config.parameters['bead_seperation'],:]
+
+        # Remove Beads that are too close to other beads
+        X = dest_beads
+        Xindex = cKDTree(X)
+        X_dists, X_idx = Xindex.query(X, k=2)
+        dest_beads = dest_beads[X_dists[:,1]>self.merfish_config.parameters['bead_seperation'],:]
+        if self.diagnostics:
+            import matplotlib.pyplot as plt
+            plt.figure(figsize=[25,25])
+            plt.title('After Bead Filtering')
+            plt.scatter(ref_beads[:,0],ref_beads[:,1],s=75,facecolors='none',edgecolors='r')
+            plt.scatter(dest_beads[:,0],dest_beads[:,1],s=75,facecolors='none',edgecolors='b')
+            plt.show()
+
+
+        self.update_user('Pairing Beads')
+        X = np.concatenate([ref_beads,dest_beads])
+        L = np.concatenate([[1 for i in range(ref_beads.shape[0])],[0 for i in range(dest_beads.shape[0])]])
+        X_labels,cluster_df = MNN_Agglomerative(X[:,0:2],max_distance = self.merfish_config.parameters['bead_seperation'],max_iterations = 1,verbose=self.verbose)
+        cluster_df['same_bit'] = [(np.unique(L[idxes]).shape[0]==1) for idxes in cluster_df['idxes']]
+        paired_cluster_df = cluster_df[(cluster_df['n_spots']==2)&(cluster_df['same_bit']==False)]
+
+        ref_paired_beads = np.zeros([paired_cluster_df.shape[0],3])
+        dest_paired_beads = np.zeros([paired_cluster_df.shape[0],3])
+        for i,(idx1,idx2) in enumerate(paired_cluster_df['idxes']):
+            if L[idx1] == 1:
+                ref_paired_beads[i,:] = X[idx1,:]
+                dest_paired_beads[i,:] = X[idx2,:]
+                
+            else:
+                ref_paired_beads[i,:] = X[idx2,:]
+                dest_paired_beads[i,:] = X[idx1,:]
+
+        if self.diagnostics:
+            import matplotlib.pyplot as plt
+            plt.figure(figsize=[25,25])
+            plt.title('Paired Beads')
+            plt.scatter(ref_paired_beads[:,0],ref_paired_beads[:,1],s=75,facecolors='none',edgecolors='r')
+            plt.scatter(dest_paired_beads[:,0],dest_paired_beads[:,1],s=75,facecolors='none',edgecolors='b')
+            plt.show()
+
+
+        if ref_paired_beads.shape[0]<self.dbscan_min_samples:
+            if self.verbose:
+                    self.update_user('Not enough reference beads found.')
+            self.passed = False
+            self.utilities.save_data('Not enough reference beads found.',
+                                    Dataset=self.dataset,
+                                    Position=self.posname,
+                                    Hybe=self.hybe,
+                                    Channel=self.channel,
+                                    Type='log')
+            self.utilities.save_data('Failed',
+                                    Dataset=self.dataset,
+                                    Position=self.posname,
+                                    Hybe=self.hybe,
+                                    Channel=self.channel,
+                                    Type='flag')
+            self.utilities.save_data('Registration Failed',
+                                        Dataset=self.dataset,
+                                        Position=self.posname,
+                                        Hybe=self.hybe,
+                                        Type='log')
+            self.utilities.save_data('Failed',
+                                        Dataset=self.dataset,
+                                        Position=self.posname,
+                                        Hybe=self.hybe,
+                                        Type='flag')
+            self.utilities.save_data(str(self.hybe)+' Failed',
+                                        Dataset=self.dataset,
+                                        Position=self.posname,
+                                        Type='log')
+            self.utilities.save_data('Failed',
+                                        Dataset=self.dataset,
+                                        Position=self.posname,
+                                        Type='flag')
+        else:
+            self.update_user('Calculating Transformation')
+            ref = ref_paired_beads
+            dest = dest_paired_beads
+            t_est = ref-dest
+            def error_func(translation):
+                fit = np.add(translation, dest)
+                fit_error = np.sqrt(np.subtract(ref, fit)**2)
+                fit_error = np.mean(fit_error)
+                return fit_error
+            # Optimize translation to map paired beads onto each other
+            opt_t = scipy.optimize.fmin(error_func, np.mean(t_est, axis=0), full_output=True, disp=False)
+            if opt_t[1]>self.registration_threshold:
+                self.error = 'Residual too high'
+                if self.verbose:
+                    self.update_user(str(self.error))
+                self.passed = False
+                self.utilities.save_data('Residual too high '+str(opt_t[1]),
+                                        Dataset=self.dataset,
+                                        Position=self.posname,
+                                        Hybe=self.hybe,
+                                        Channel=self.channel,
+                                        Type='log')
+                self.utilities.save_data('Failed',
+                                        Dataset=self.dataset,
+                                        Position=self.posname,
+                                        Hybe=self.hybe,
+                                        Channel=self.channel,
+                                        Type='flag')
+                self.utilities.save_data('Registration Failed',
+                                        Dataset=self.dataset,
+                                        Position=self.posname,
+                                        Hybe=self.hybe,
+                                        Type='log')
+                self.utilities.save_data('Failed',
+                                        Dataset=self.dataset,
+                                        Position=self.posname,
+                                        Hybe=self.hybe,
+                                        Type='flag')
+                self.utilities.save_data(str(self.hybe)+' Failed',
+                                        Dataset=self.dataset,
+                                        Position=self.posname,
+                                        Type='log')
+                self.utilities.save_data('Failed',
+                                        Dataset=self.dataset,
+                                        Position=self.posname,
+                                        Type='flag')
+            self.translation_x = opt_t[0][1]
+            self.translation_y = opt_t[0][0]
+            self.translation_z = opt_t[0][2]
+            self.residual = opt_t[1]
+            self.nbeads = ref.shape[0]
+            self.save_tforms()
+
+    def calculate_transformation_depricated(self):
         """
         Calculate transformation to register 2 sets of images together
         Given a set of candidate bead coordinates (xyz) and a reference hybe find min-error translation.
@@ -657,16 +813,13 @@ class Registration_Class(object):
         self.ref_tree = self.utilities.load_data(Dataset=self.dataset,Position=self.posname,Hybe=self.ref_hybe,Type='ref_tree')
         self.db_clusts = self.utilities.load_data(Dataset=self.dataset,Position=self.posname,Hybe=self.ref_hybe,Type='db_clusts')
         if isinstance(self.ref_beadarray,type(None)):
-            if self.verbose:
-                self.update_user('ref_beadarray is none')
+            self.update_user('ref_beadarray is none')
             self.load_ref()
         elif isinstance(self.ref_tree,type(None)):
-            if self.verbose:
-                self.update_user('ref_tree is none')
+            self.update_user('ref_tree is none')
             self.load_ref()
         elif isinstance(self.db_clusts,type(None)):
-            if self.verbose:
-                self.update_user('db_clusts is none')
+            self.update_user('db_clusts is none')
             self.load_ref()
         else:
             self.reg_proceed = True
@@ -680,7 +833,7 @@ class Registration_Class(object):
             dest_beads = []
             close_beads = self.ref_tree.query_ball_point(self.beadarray[:, :2], r=self.max_dist)
             if self.verbose:
-                iterable = tqdm(zip(close_beads,self.beadarray),total=self.beadarray.shape[0],desc='Calculating Transformation')
+                iterable = tqdm(zip(close_beads,self.beadarray),total=self.beadarray.shape[0],desc='Loading Beads')
             else:
                 iterable = zip(close_beads, self.beadarray)
             for i, bead in iterable:
@@ -728,6 +881,7 @@ class Registration_Class(object):
                                          Position=self.posname,
                                          Type='flag')
             if self.passed:
+                self.update_user('Pairing Beads')
                 t_est = np.stack(t_est, axis=0)
                 self.db_clusts.fit(t_est)
                 most_frequent_cluster = Counter(self.db_clusts.labels_)
@@ -769,6 +923,7 @@ class Registration_Class(object):
                                              Position=self.posname,
                                              Type='flag')
             if self.passed:
+                self.update_user('Calculating_Transformation')
                 paired_beads_idx = self.db_clusts.labels_==most_frequent_cluster
                 ref = ref_beads[paired_beads_idx]
                 dest = dest_beads[paired_beads_idx]
