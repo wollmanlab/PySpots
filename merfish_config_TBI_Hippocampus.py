@@ -160,8 +160,8 @@ parameters['registration_overwrite'] = False
 
 """ Image """
 parameters['projection_zstart']=-1 # Which Z index to start (-1 means first)
-parameters['projection_k']=1 # How many Z above and below to include (1 means 1 above and 1 below)
-parameters['projection_zskip']=2 # How many Z indexes to skip
+parameters['projection_k']=0 # How many Z above and below to include (1 means 1 above and 1 below)
+parameters['projection_zskip']=1 # How many Z indexes to skip
 parameters['projection_zend']=-1 # Which Z index to stop (-1 means last)
 parameters['projection_function']='max' # Which method to use to project (typically max or mean)
 parameters['dtype_rel_min']=0 # when converting dtypes this amount in percentile will be set to 0
