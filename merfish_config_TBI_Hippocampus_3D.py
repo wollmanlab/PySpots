@@ -155,7 +155,7 @@ parameters['registration_method'] = 'beads' # What method of registration to use
 parameters['registration_image_blur_kernel'] = (0.1/parameters['pixel_size']) #100 nm # What size kernel to blur image with
 parameters['registration_image_background_kernel'] = (0.5/parameters['pixel_size']) # 500nm # What size kernel to calculte background
 parameters['subpixel_method'] = 'max'
-parameters['registration_overwrite'] = False
+parameters['registration_overwrite'] = True
 """ Stack """
 
 """ Image """
@@ -179,7 +179,7 @@ parameters['spot_diameter'] = 5 # 250 nm
 parameters['spot_minmass'] = 15#9 # not based on size?
 parameters['spot_separation'] = 3 # 100 nm
 parameters['image_call_spots'] = False
-parameters['image_overwrite'] = False
+parameters['image_overwrite'] = True
 """ Segment """
 parameters['nucstain_channel'] = 'FarRed' # Which Channel is your nuclear stain in
 parameters['nucstain_acq'] = 'hybe25' # Which acquision is your nuclear signal in
