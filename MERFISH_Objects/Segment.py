@@ -47,6 +47,7 @@ def process_image(data,parameters):
     img_idx = data['img_idx']
     fname = data['fname']
     image = cv2.imread(os.path.join(fname),-1).astype(float)
+    image = median_filter(image,2)
     image = image-gaussian_filter(image,parameters['segment_nuclear_blur'])
     image[image<0] = 0
     if not parameters['segment_two_dimensional']:
@@ -184,7 +185,10 @@ class Segment_Class(object):
         
     def find_nucstain(self):
         if self.acq == 'infer':
-            self.acq = [i for i in os.listdir(self.metadata_path) if self.acqname in i][0]
+            if '_' in self.acqname:
+                self.acq = [i for i in os.listdir(self.metadata_path) if self.acqname.lower() in i.lower()][0]
+            else:
+                self.acq = [i for i in os.listdir(self.metadata_path) if (self.acqname+'_').lower() in i.lower()][0]
         
     def check_projection(self):
         self.projection_zstart=self.parameters['projection_zstart'] 
