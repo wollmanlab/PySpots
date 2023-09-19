@@ -244,7 +244,7 @@ class Image_Class(object):
                     self.zindexes = list(self.zindexes[np.isin(self.zindexes,self.imaged_zindexes)])
                     if len(self.zindexes)==0:
                         self.proceed = False
-                        print('No Zindexes')
+                        # print('No Zindexes')
                 # Might be issues if the z transformation is too large
                 if self.proceed:
                     """ Loading Images """
@@ -362,6 +362,8 @@ class Image_Class(object):
             blur = median_filter(self.img,kernel)
         elif method == 'gaussian':
             blur = gaussian_filter(self.img,kernel)
+        elif method == 'rolling_ball':
+            blur = gaussian_filter(restoration.rolling_ball(gaussian_filter(self.img,kernel/5),radius=kernel,num_threads=30),kernel)
         else:
             raise(ValueError(method,'is not an implemented method'))
         return blur
