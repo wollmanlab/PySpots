@@ -156,6 +156,7 @@ parameters['registration_image_blur_kernel'] = (0.1/parameters['pixel_size']) #1
 parameters['registration_image_background_kernel'] = (0.5/parameters['pixel_size']) # 500nm # What size kernel to calculte background
 parameters['subpixel_method'] = 'max'
 parameters['registration_overwrite'] = True
+parameters['bead_seperation'] = 50
 """ Stack """
 
 """ Image """
