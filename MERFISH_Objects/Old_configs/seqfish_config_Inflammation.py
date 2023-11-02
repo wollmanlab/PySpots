@@ -12,7 +12,7 @@ import os
 from scipy.spatial import distance_matrix
 from collections import OrderedDict
 from sklearn.preprocessing import normalize
-from hybescope_config.microscope_config import *
+from MERFISH_Objects.hybescope_config.microscope_config import *
 
 # Basic parameters of imaging
 

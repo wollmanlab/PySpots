@@ -12,7 +12,7 @@ import os
 from scipy.spatial import distance_matrix
 from collections import OrderedDict
 from sklearn.preprocessing import normalize
-from hybescope_config.microscope_config import *
+from MERFISH_Objects.hybescope_config.microscope_config import *
 
 """ Order in which the barcode was imaged and with which color"""
 bitmap = [('RS0095_cy5', 'hybe1', 'FarRed'),
@@ -52,7 +52,7 @@ def load_codebook(fname):
     return np.array(barcodes)
 
 """ Load Possible Barcodes"""
-base_pth = '/home/zach/PythonRepos/PySpots/hybescope_config/'
+base_pth = os.path.dirname(os.path.abspath(__file__))
 if nbits==18:
     possible_cwords = load_codebook(os.path.join(base_pth,'MHD4_18bit_187cwords.csv'))
 elif nbits==24:

@@ -1,4 +1,3 @@
-from hybescope_config.microscope_config import *
 import numpy as np
 from scipy.ndimage import median_filter,gaussian_filter
 from scipy.ndimage.filters import convolve
@@ -8,6 +7,7 @@ import importlib
 from metadata import Metadata
 from MERFISH_Objects.Utilities import *
 from MERFISH_Objects.FISHData import *
+from MERFISH_Objects.hybescope_config.microscope_config import *
 from flowdec import data as fd_data
 from flowdec import restoration as fd_restoration
 from skimage import restoration

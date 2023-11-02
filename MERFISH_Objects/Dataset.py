@@ -3,7 +3,7 @@ from MERFISH_Objects.Position import *
 from MERFISH_Objects.Classify import *
 import pandas as pd
 from metadata import Metadata
-from hybescope_config.microscope_config import *
+from MERFISH_Objects.hybescope_config.microscope_config import *
 import numpy as np
 import dill as pickle
 import importlib

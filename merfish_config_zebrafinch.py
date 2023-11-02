@@ -12,7 +12,7 @@ import os
 from scipy.spatial import distance_matrix
 from collections import OrderedDict
 from sklearn.preprocessing import normalize
-from hybescope_config.microscope_config import *
+from MERFISH_Objects.hybescope_config.microscope_config import *
 
 """ Order in which the barcode was imaged and with which color"""
 bitmap = [('RS0095', 'hybe1', 'FarRed'),

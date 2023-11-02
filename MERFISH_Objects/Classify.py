@@ -3,7 +3,7 @@ from metadata import Metadata
 from MERFISH_Objects.Registration import *
 from MERFISH_Objects.Stack import *
 from MERFISH_Objects.Image import *
-from hybescope_config.microscope_config import *
+from MERFISH_Objects.hybescope_config.microscope_config import *
 from MERFISH_Objects.FISHData import *
 import dill as pickle
 import os
